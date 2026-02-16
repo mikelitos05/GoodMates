@@ -48,8 +48,8 @@ function TenantProfile() {
                     <div className="profile-header-left">
                         <div className="avatar avatar-xl">{user?.avatar}</div>
                         <div>
-                            <h1 className="profile-title">{user?.name}</h1>
-                            <p className="profile-email">{user?.email}</p>
+                            <h1 className="profile-title">{user?.full_name || user?.name}</h1>
+                            <p className="profile-email">@{user?.username}</p>
                             <span className="badge badge-primary">Inquilino</span>
                         </div>
                     </div>

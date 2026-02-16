@@ -10,6 +10,9 @@ function Navbar() {
     const [menuOpen, setMenuOpen] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
 
+    // Compatible con backend (full_name) y datos anteriores (name)
+    const displayName = user ? (user.full_name || user.name || 'Usuario') : '';
+
     const handleLogout = () => {
         logout();
         navigate('/');
@@ -75,7 +78,7 @@ function Navbar() {
                                 onClick={() => setDropdownOpen(!dropdownOpen)}
                             >
                                 <div className="avatar avatar-sm">{user.avatar}</div>
-                                <span className="user-name">{user.name.split(' ')[0]}</span>
+                                <span className="user-name">{displayName.split(' ')[0]}</span>
                                 <span className={`dropdown-arrow ${dropdownOpen ? 'open' : ''}`}>▾</span>
                             </button>
                             {dropdownOpen && (
@@ -83,7 +86,7 @@ function Navbar() {
                                     <div className="dropdown-header">
                                         <div className="avatar">{user.avatar}</div>
                                         <div>
-                                            <p className="dropdown-name">{user.name}</p>
+                                            <p className="dropdown-name">{displayName}</p>
                                             <p className="dropdown-role">{user.role === 'tenant' ? 'Inquilino' : user.role === 'landlord' ? 'Arrendador' : 'Administrador'}</p>
                                         </div>
                                     </div>

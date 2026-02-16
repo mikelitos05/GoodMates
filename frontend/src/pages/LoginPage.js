@@ -4,27 +4,30 @@ import { useAuth } from '../contexts/AuthContext';
 import './LoginPage.css';
 
 function LoginPage() {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const { login } = useAuth();
     const navigate = useNavigate();
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
         setLoading(true);
 
-        setTimeout(() => {
-            const result = login(email, password);
+        try {
+            const result = await login(username, password);
             if (result.success) {
                 navigate(`/${result.user.role}/dashboard`);
             } else {
                 setError(result.error);
             }
+        } catch (err) {
+            setError('Error de conexión con el servidor');
+        } finally {
             setLoading(false);
-        }, 800);
+        }
     };
 
     return (
@@ -62,13 +65,13 @@ function LoginPage() {
 
                         <form onSubmit={handleSubmit} className="auth-form">
                             <div className="form-group">
-                                <label className="form-label">Correo electrónico</label>
+                                <label className="form-label">Nombre de usuario</label>
                                 <input
-                                    type="email"
+                                    type="text"
                                     className="form-input"
-                                    placeholder="tu@correo.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="Tu nombre de usuario"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
                                     required
                                 />
                             </div>
@@ -90,40 +93,12 @@ function LoginPage() {
                                     <input type="checkbox" />
                                     <span>Recordarme</span>
                                 </label>
-                                <Link to="#" className="forgot-link">¿Olvidaste tu contraseña?</Link>
                             </div>
 
                             <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={loading}>
                                 {loading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
                             </button>
                         </form>
-
-                        <div className="auth-demo-accounts">
-                            <p className="demo-title">Cuentas de prueba:</p>
-                            <div className="demo-list">
-                                <button className="demo-account" onClick={() => { setEmail('carlos@goodmates.com'); setPassword('demo'); }}>
-                                    <span className="avatar avatar-sm">CM</span>
-                                    <div>
-                                        <p className="demo-name">Carlos (Tenant)</p>
-                                        <p className="demo-email">carlos@goodmates.com</p>
-                                    </div>
-                                </button>
-                                <button className="demo-account" onClick={() => { setEmail('roberto@goodmates.com'); setPassword('demo'); }}>
-                                    <span className="avatar avatar-sm" style={{ background: 'linear-gradient(135deg, #f59e0b, #ef4444)' }}>RD</span>
-                                    <div>
-                                        <p className="demo-name">Roberto (Landlord)</p>
-                                        <p className="demo-email">roberto@goodmates.com</p>
-                                    </div>
-                                </button>
-                                <button className="demo-account" onClick={() => { setEmail('admin@goodmates.com'); setPassword('demo'); }}>
-                                    <span className="avatar avatar-sm" style={{ background: 'linear-gradient(135deg, #8b5cf6, #ec4899)' }}>AD</span>
-                                    <div>
-                                        <p className="demo-name">Admin</p>
-                                        <p className="demo-email">admin@goodmates.com</p>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
 
                         <p className="auth-switch">
                             ¿No tienes cuenta? <Link to="/register" className="auth-switch-link">Regístrate aquí</Link>

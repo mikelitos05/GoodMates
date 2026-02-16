@@ -1,0 +1,84 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { loginUser, registerUser, verifyToken, logoutUser } from '../services/api';
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+    const [user, setUser] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    // Al cargar la app, verificar si hay un token guardado para restaurar sesión
+    useEffect(() => {
+        const restoreSession = async () => {
+            const result = await verifyToken();
+            if (result.success) {
+                setUser(result.user);
+            }
+            setLoading(false);
+        };
+        restoreSession();
+    }, []);
+
+    const login = async (username, password) => {
+        const result = await loginUser(username, password);
+        if (result.success) {
+            setUser(result.user);
+            return { success: true, user: result.user };
+        }
+        return { success: false, error: result.error };
+    };
+
+    const register = async (name, username, password, role) => {
+        const result = await registerUser(username, password, name, role);
+        if (result.success) {
+            setUser(result.user);
+            return { success: true, user: result.user };
+        }
+        return { success: false, error: result.error };
+    };
+
+    const logout = () => {
+        logoutUser();
+        setUser(null);
+    };
+
+    const updateProfile = (profileData) => {
+        setUser((prev) => ({
+            ...prev,
+            profile: { ...prev.profile, ...profileData },
+        }));
+    };
+
+    // Mientras se verifica el token, mostrar un loading
+    if (loading) {
+        return (
+            <div style={{
+                display: 'flex',
+                justifyContent: 'center',
+                alignItems: 'center',
+                height: '100vh',
+                background: 'var(--bg-primary, #0a0a1a)',
+                color: 'var(--text-primary, #fff)',
+                fontSize: '1.1rem',
+            }}>
+                Cargando...
+            </div>
+        );
+    }
+
+    return (
+        <AuthContext.Provider value={{ user, login, register, logout, updateProfile }}>
+            {children}
+        </AuthContext.Provider>
+    );
+}
+
+export function useAuth() {
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuth debe usarse dentro de un AuthProvider');
+    }
+    return context;
+}
+
+export default AuthContext;

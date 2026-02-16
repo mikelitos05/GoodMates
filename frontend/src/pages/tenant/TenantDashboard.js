@@ -17,7 +17,7 @@ function TenantDashboard() {
                 <div className="dashboard-welcome animate-fade-in-up">
                     <div className="welcome-text">
                         <h1 className="welcome-title">
-                            ¡Hola, <span className="text-gradient">{user.name.split(' ')[0]}</span>!
+                            ¡Hola, <span className="text-gradient">{(user.full_name || user.name || '').split(' ')[0]}</span>!
                         </h1>
                         <p className="welcome-subtitle">
                             Bienvenido a tu panel de GoodMates. Aquí tienes un resumen de tu actividad.

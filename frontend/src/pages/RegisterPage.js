@@ -7,7 +7,7 @@ function RegisterPage() {
     const [step, setStep] = useState(1);
     const [role, setRole] = useState('');
     const [name, setName] = useState('');
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
@@ -20,7 +20,7 @@ function RegisterPage() {
         setStep(2);
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
 
@@ -35,15 +35,19 @@ function RegisterPage() {
         }
 
         setLoading(true);
-        setTimeout(() => {
-            const result = register(name, email, password, role);
+
+        try {
+            const result = await register(name, username, password, role);
             if (result.success) {
                 navigate(`/${role}/dashboard`);
             } else {
                 setError(result.error || 'Error al registrar');
             }
+        } catch (err) {
+            setError('Error de conexión con el servidor');
+        } finally {
             setLoading(false);
-        }, 800);
+        }
     };
 
     return (
@@ -113,13 +117,13 @@ function RegisterPage() {
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Correo electrónico</label>
+                                    <label className="form-label">Nombre de usuario</label>
                                     <input
-                                        type="email"
+                                        type="text"
                                         className="form-input"
-                                        placeholder="tu@correo.com"
-                                        value={email}
-                                        onChange={(e) => setEmail(e.target.value)}
+                                        placeholder="Elige un nombre de usuario"
+                                        value={username}
+                                        onChange={(e) => setUsername(e.target.value)}
                                         required
                                     />
                                 </div>
