@@ -48,7 +48,7 @@ function Navbar() {
         <nav className="navbar">
             <div className="navbar-container">
                 <Link to={user ? `/${user.role}/dashboard` : '/'} className="navbar-logo">
-                    <img src="/logo.svg" alt="GoodMates" className="logo-img" />
+                    <img src="/GoodMatesIcon.png" alt="GoodMates" className="logo-img" />
                     <span className="logo-text">Good<span className="logo-accent">Mates</span></span>
                 </Link>
 

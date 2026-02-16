@@ -67,7 +67,7 @@ function RegisterPage() {
                     <div className="auth-form-wrapper">
                         <div className="auth-header">
                             <Link to="/" className="auth-logo">
-                                <img src="/logo.svg" alt="GoodMates" style={{ height: '32px', width: 'auto' }} /> Good<span className="text-gradient">Mates</span>
+                                <img src="/GoodMatesIcon.png" alt="GoodMates" style={{ height: '32px', width: 'auto' }} /> Good<span className="text-gradient">Mates</span>
                             </Link>
                             <h1 className="auth-title">
                                 {step === 1 ? '¿Quién eres?' : 'Crea tu cuenta'}
