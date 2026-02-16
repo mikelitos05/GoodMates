@@ -9,7 +9,7 @@ function Footer() {
                 <div className="footer-grid">
                     <div className="footer-brand">
                         <div className="footer-logo">
-                            <span className="logo-icon">🏠</span>
+                            <img src="/logo.svg" alt="GoodMates" className="logo-img" />
                             <span className="logo-text">Good<span className="logo-accent">Mates</span></span>
                         </div>
                         <p className="footer-tagline">

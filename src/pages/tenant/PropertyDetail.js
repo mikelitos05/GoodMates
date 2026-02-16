@@ -34,14 +34,14 @@ function PropertyDetail() {
                         {/* Image Gallery */}
                         <div className="detail-gallery">
                             <div className="gallery-main">
-                                <div className="gallery-placeholder">🏠</div>
-                                {property.featured && <span className="property-featured-badge">⭐ Destacada</span>}
+                                <div className="gallery-placeholder">Sin imagen</div>
+                                {property.featured && <span className="property-featured-badge">Destacada</span>}
                             </div>
                         </div>
 
                         <div className="detail-content">
                             <h1 className="detail-title">{property.title}</h1>
-                            <p className="detail-location">📍 {property.address}, {property.city}, {property.state}</p>
+                            <p className="detail-location">{property.address}, {property.city}, {property.state}</p>
 
                             <div className="detail-stats">
                                 <div className="detail-stat">
@@ -84,7 +84,7 @@ function PropertyDetail() {
                                 <div className="rules-list">
                                     {property.rules.map((rule, i) => (
                                         <div key={i} className="rule-item">
-                                            <span className="rule-icon">📌</span>
+                                            <span className="rule-icon">•</span>
                                             {rule}
                                         </div>
                                     ))}
@@ -96,7 +96,7 @@ function PropertyDetail() {
                                 <div className="nearby-list">
                                     {property.nearbyPlaces.map((place, i) => (
                                         <div key={i} className="nearby-item">
-                                            <span className="nearby-icon">📍</span>
+                                            <span className="nearby-icon">•</span>
                                             {place}
                                         </div>
                                     ))}
@@ -118,7 +118,7 @@ function PropertyDetail() {
                                 style={{ width: '100%' }}
                                 onClick={() => setInterested(!interested)}
                             >
-                                {interested ? '✅ Solicitud Enviada' : '🏠 Me interesa'}
+                                {interested ? 'Solicitud Enviada' : 'Me interesa'}
                             </button>
 
                             {interested && (

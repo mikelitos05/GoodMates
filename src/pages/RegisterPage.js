@@ -56,9 +56,9 @@ function RegisterPage() {
                             Crea tu cuenta y comienza a conectar con roommates compatibles o publica tus propiedades.
                         </p>
                         <div className="auth-visual-features">
-                            <div className="auth-feature">🔗 Encuentra roommates compatibles</div>
-                            <div className="auth-feature">🏡 Publica o busca propiedades</div>
-                            <div className="auth-feature">✅ Organiza la convivencia</div>
+                            <div className="auth-feature">Encuentra roommates compatibles</div>
+                            <div className="auth-feature">Publica o busca propiedades</div>
+                            <div className="auth-feature">Organiza la convivencia</div>
                         </div>
                     </div>
                 </div>
@@ -67,7 +67,7 @@ function RegisterPage() {
                     <div className="auth-form-wrapper">
                         <div className="auth-header">
                             <Link to="/" className="auth-logo">
-                                <span>🏠</span> Good<span className="text-gradient">Mates</span>
+                                <img src="/logo.svg" alt="GoodMates" style={{ height: '32px', width: 'auto' }} /> Good<span className="text-gradient">Mates</span>
                             </Link>
                             <h1 className="auth-title">
                                 {step === 1 ? '¿Quién eres?' : 'Crea tu cuenta'}
@@ -81,19 +81,19 @@ function RegisterPage() {
 
                         {error && (
                             <div className="auth-error animate-fade-in">
-                                ⚠️ {error}
+                                {error}
                             </div>
                         )}
 
                         {step === 1 ? (
                             <div className="role-selector">
                                 <button className="role-option" onClick={() => handleRoleSelect('tenant')}>
-                                    <div className="role-icon">🎓</div>
+                                    <div className="role-icon">Inquilino</div>
                                     <p className="role-title">Soy Inquilino</p>
                                     <p className="role-desc">Busco vivienda y roommates</p>
                                 </button>
                                 <button className="role-option" onClick={() => handleRoleSelect('landlord')}>
-                                    <div className="role-icon">🏢</div>
+                                    <div className="role-icon">Arrendador</div>
                                     <p className="role-title">Soy Arrendador</p>
                                     <p className="role-desc">Publico propiedades en renta</p>
                                 </button>

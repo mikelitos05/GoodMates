@@ -22,7 +22,7 @@ function PropertySearch() {
         <div className="search-page">
             <div className="container">
                 <div className="search-header animate-fade-in-up">
-                    <h1 className="section-title">🏡 Buscar Propiedades</h1>
+                    <h1 className="section-title">Buscar Propiedades</h1>
                     <p className="section-subtitle">
                         Encuentra tu próximo hogar entre las propiedades disponibles en la plataforma.
                     </p>
@@ -31,7 +31,7 @@ function PropertySearch() {
                 {/* Search Bar */}
                 <div className="search-bar animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="search-input-wrapper">
-                        <span className="search-icon">🔍</span>
+                        <span className="search-icon">Buscar</span>
                         <input
                             type="text"
                             className="search-input"
@@ -44,7 +44,7 @@ function PropertySearch() {
                         className="btn btn-outline filter-toggle"
                         onClick={() => setShowFilters(!showFilters)}
                     >
-                        ⚙️ Filtros
+                        Filtros
                     </button>
                 </div>
 
@@ -86,10 +86,10 @@ function PropertySearch() {
                         <Link to={`/tenant/properties/${property.id}`} key={property.id} className="property-card animate-fade-in-up">
                             <div className="property-image">
                                 <div className="property-image-placeholder">
-                                    🏠
+                                    Sin imagen
                                 </div>
                                 {property.featured && (
-                                    <span className="property-featured-badge">⭐ Destacada</span>
+                                    <span className="property-featured-badge">Destacada</span>
                                 )}
                                 <span className="property-rooms-badge">
                                     {property.availableRooms} hab. disponible{property.availableRooms !== 1 ? 's' : ''}
@@ -97,11 +97,11 @@ function PropertySearch() {
                             </div>
                             <div className="property-info">
                                 <h3 className="property-title">{property.title}</h3>
-                                <p className="property-location">📍 {property.address}, {property.city}</p>
+                                <p className="property-location">{property.address}, {property.city}</p>
                                 <div className="property-meta">
-                                    <span>🛏️ {property.rooms} habitaciones</span>
-                                    <span>🚿 {property.bathrooms} baños</span>
-                                    <span>📐 {property.area}m²</span>
+                                    <span>{property.rooms} habitaciones</span>
+                                    <span>{property.bathrooms} baños</span>
+                                    <span>{property.area}m²</span>
                                 </div>
                                 <div className="property-amenities-preview">
                                     {property.amenities.slice(0, 3).map((a, i) => (
@@ -122,7 +122,7 @@ function PropertySearch() {
 
                 {filtered.length === 0 && (
                     <div className="no-results">
-                        <span className="no-results-icon">🔍</span>
+                        <span className="no-results-icon">Sin resultados</span>
                         <h3>No se encontraron propiedades</h3>
                         <p>Intenta ajustar tus filtros de búsqueda</p>
                     </div>

@@ -13,7 +13,7 @@ function RoommateGroup() {
             <div className="group-page">
                 <div className="container">
                     <div className="no-group">
-                        <div className="no-group-icon">👥</div>
+                        <div className="no-group-icon">Sin grupo</div>
                         <h2>Aún no perteneces a un grupo</h2>
                         <p>Acepta un match y forma tu grupo de roommates para acceder a las herramientas de convivencia.</p>
                         <Link to="/tenant/matches" className="btn btn-primary btn-lg">Ver Matches →</Link>
@@ -33,7 +33,7 @@ function RoommateGroup() {
                     <div>
                         <h1 className="section-title">{group.name}</h1>
                         <p className="section-subtitle">
-                            {property ? `📍 ${property.title}` : 'Grupo de roommates'}
+                            {property ? `${property.title}` : 'Grupo de roommates'}
                             {' · '} Creado el {group.createdAt}
                         </p>
                     </div>
@@ -42,7 +42,7 @@ function RoommateGroup() {
                 {/* Members */}
                 <div className="group-grid animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="group-card">
-                        <h2 className="group-card-title">👥 Miembros ({members.length})</h2>
+                        <h2 className="group-card-title">Miembros ({members.length})</h2>
                         <div className="members-list">
                             {members.map((member) => (
                                 <div key={member.id} className="member-card">
@@ -65,10 +65,10 @@ function RoommateGroup() {
 
                     {/* Quick Actions */}
                     <div className="group-actions-card">
-                        <h2 className="group-card-title">🛠️ Herramientas</h2>
+                        <h2 className="group-card-title">Herramientas</h2>
                         <div className="group-tools">
                             <Link to="/roommate/tasks" className="group-tool-card">
-                                <span className="tool-icon">✅</span>
+                                <span className="tool-icon">Tareas</span>
                                 <div>
                                     <h3 className="tool-title">Task Manager</h3>
                                     <p className="tool-desc">Organiza las tareas del hogar</p>
@@ -76,7 +76,7 @@ function RoommateGroup() {
                                 <span className="tool-arrow">→</span>
                             </Link>
                             <Link to="/roommate/board" className="group-tool-card">
-                                <span className="tool-icon">📋</span>
+                                <span className="tool-icon">Board</span>
                                 <div>
                                     <h3 className="tool-title">Mates Board</h3>
                                     <p className="tool-desc">Avisos y comunicación</p>
@@ -87,12 +87,12 @@ function RoommateGroup() {
 
                         {property && (
                             <div className="group-property-preview">
-                                <h3 className="group-card-title" style={{ marginTop: 'var(--space-6)' }}>🏠 Nuestra Propiedad</h3>
+                                <h3 className="group-card-title" style={{ marginTop: 'var(--space-6)' }}>Nuestra Propiedad</h3>
                                 <div className="property-mini-card">
-                                    <div className="mini-card-image">🏠</div>
+                                    <div className="mini-card-image">Sin imagen</div>
                                     <div>
                                         <p className="mini-card-title">{property.title}</p>
-                                        <p className="mini-card-location">📍 {property.address}, {property.city}</p>
+                                        <p className="mini-card-location">{property.address}, {property.city}</p>
                                         <p className="mini-card-price">${property.price.toLocaleString()}/mes</p>
                                     </div>
                                 </div>

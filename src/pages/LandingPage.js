@@ -17,7 +17,7 @@ function LandingPage() {
                 </div>
                 <div className="hero-content container">
                     <div className="hero-text animate-fade-in-up">
-                        <span className="hero-badge">🏠 La plataforma #1 para roommates</span>
+                        <span className="hero-badge">La plataforma #1 para roommates</span>
                         <h1 className="hero-title">
                             Encuentra tu <span className="text-gradient">roommate ideal</span> y vive la mejor experiencia
                         </h1>
@@ -67,9 +67,9 @@ function LandingPage() {
                                     </div>
                                 </div>
                                 <div className="hero-card-tags">
-                                    <span className="badge badge-accent">🧹 Limpio</span>
-                                    <span className="badge badge-primary">🎮 Gamer</span>
-                                    <span className="badge badge-warning">🌅 Matutino</span>
+                                    <span className="badge badge-accent">Limpio</span>
+                                    <span className="badge badge-primary">Gamer</span>
+                                    <span className="badge badge-warning">Matutino</span>
                                 </div>
                             </div>
                             <div className="hero-card hero-card-2">
@@ -79,7 +79,7 @@ function LandingPage() {
                                         <p className="hero-card-name">Ana G.</p>
                                         <p className="hero-card-sub">UANL · Medicina</p>
                                     </div>
-                                    <span className="match-badge">92% Match ✨</span>
+                                    <span className="match-badge">92% Match</span>
                                 </div>
                             </div>
                             <div className="hero-card hero-card-3">
@@ -89,7 +89,7 @@ function LandingPage() {
                                         <p className="hero-card-name">Laura S.</p>
                                         <p className="hero-card-sub">ITESM · Administración</p>
                                     </div>
-                                    <span className="match-badge">87% Match ✨</span>
+                                    <span className="match-badge">87% Match</span>
                                 </div>
                             </div>
                         </div>
@@ -108,7 +108,7 @@ function LandingPage() {
                     </div>
                     <div className="features-grid">
                         <div className="feature-card animate-fade-in-up">
-                            <div className="feature-icon">🔗</div>
+                            <div className="feature-icon">01</div>
                             <h3 className="feature-title">Compatibilidad Inteligente</h3>
                             <p className="feature-desc">
                                 Nuestro algoritmo analiza tus hábitos, horarios, preferencias y estilo de vida
@@ -116,7 +116,7 @@ function LandingPage() {
                             </p>
                         </div>
                         <div className="feature-card animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
-                            <div className="feature-icon">🏡</div>
+                            <div className="feature-icon">02</div>
                             <h3 className="feature-title">Propiedades Verificadas</h3>
                             <p className="feature-desc">
                                 Explora propiedades cerca de tu universidad o trabajo. Los landlords publican
@@ -124,7 +124,7 @@ function LandingPage() {
                             </p>
                         </div>
                         <div className="feature-card animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                            <div className="feature-icon">✅</div>
+                            <div className="feature-icon">03</div>
                             <h3 className="feature-title">Task Manager</h3>
                             <p className="feature-desc">
                                 Organiza las tareas del hogar: limpieza, compras, pagos de servicios.
@@ -132,7 +132,7 @@ function LandingPage() {
                             </p>
                         </div>
                         <div className="feature-card animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
-                            <div className="feature-icon">📋</div>
+                            <div className="feature-icon">04</div>
                             <h3 className="feature-title">Mates Board</h3>
                             <p className="feature-desc">
                                 Comunícate con tus roomies mediante un tablero de avisos. Publica noticias,
@@ -140,7 +140,7 @@ function LandingPage() {
                             </p>
                         </div>
                         <div className="feature-card animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-                            <div className="feature-icon">🔒</div>
+                            <div className="feature-icon">05</div>
                             <h3 className="feature-title">Privacidad y Seguridad</h3>
                             <p className="feature-desc">
                                 Tu información personal está protegida. Tú controlas qué datos compartes
@@ -148,7 +148,7 @@ function LandingPage() {
                             </p>
                         </div>
                         <div className="feature-card animate-fade-in-up" style={{ animationDelay: '0.5s' }}>
-                            <div className="feature-icon">⭐</div>
+                            <div className="feature-icon">06</div>
                             <h3 className="feature-title">Reputación y Calificaciones</h3>
                             <p className="feature-desc">
                                 Al finalizar la convivencia, califica a tus roomies. Las métricas de reputación

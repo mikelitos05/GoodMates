@@ -24,7 +24,7 @@ function MatchesPage() {
         <div className="matches-page">
             <div className="container">
                 <div className="matches-header animate-fade-in-up">
-                    <h1 className="section-title">💕 Mis Matches</h1>
+                    <h1 className="section-title">Mis Matches</h1>
                     <p className="section-subtitle">
                         Personas compatibles para compartir vivienda contigo, basado en tu perfil y preferencias.
                     </p>
@@ -33,17 +33,17 @@ function MatchesPage() {
                 {/* Match Stats */}
                 <div className="match-stats animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="match-stat-card">
-                        <span className="match-stat-icon">⏳</span>
+                        <span className="match-stat-icon">Pend.</span>
                         <span className="match-stat-value">{matches.filter((m) => m.status === 'pending').length}</span>
                         <span className="match-stat-label">Pendientes</span>
                     </div>
                     <div className="match-stat-card">
-                        <span className="match-stat-icon">✅</span>
+                        <span className="match-stat-icon">Acep.</span>
                         <span className="match-stat-value">{matches.filter((m) => m.status === 'accepted').length}</span>
                         <span className="match-stat-label">Aceptados</span>
                     </div>
                     <div className="match-stat-card">
-                        <span className="match-stat-icon">❌</span>
+                        <span className="match-stat-icon">Rech.</span>
                         <span className="match-stat-value">{matches.filter((m) => m.status === 'rejected').length}</span>
                         <span className="match-stat-label">Rechazados</span>
                     </div>
@@ -83,13 +83,13 @@ function MatchesPage() {
                                 <div className="match-card-center">
                                     <h3 className="match-name">{matchUser.name}</h3>
                                     <p className="match-detail">
-                                        {profile.university && `📚 ${profile.university}`}
+                                        {profile.university && `${profile.university}`}
                                         {profile.career && ` · ${profile.career}`}
                                     </p>
                                     <p className="match-detail">
                                         {profile.age && `${profile.age} años`}
-                                        {profile.city && ` · 📍 ${profile.city}`}
-                                        {profile.schedule && ` · 🕐 ${profile.schedule}`}
+                                        {profile.city && ` · ${profile.city}`}
+                                        {profile.schedule && ` · ${profile.schedule}`}
                                     </p>
                                     <div className="match-tags">
                                         {profile.hobbies && profile.hobbies.slice(0, 4).map((h, i) => (
@@ -108,7 +108,7 @@ function MatchesPage() {
                                                 className="btn btn-primary"
                                                 onClick={() => handleAction(match.id, 'accepted')}
                                             >
-                                                ✅ Aceptar
+                                                Aceptar
                                             </button>
                                             <button
                                                 className="btn btn-ghost"
@@ -119,7 +119,7 @@ function MatchesPage() {
                                         </div>
                                     ) : (
                                         <span className={`match-status-badge ${match.status}`}>
-                                            {match.status === 'accepted' ? '✅ Aceptado' : '❌ Rechazado'}
+                                            {match.status === 'accepted' ? 'Aceptado' : 'Rechazado'}
                                         </span>
                                     )}
                                 </div>
@@ -130,7 +130,7 @@ function MatchesPage() {
 
                 {matches.length === 0 && (
                     <div className="no-results">
-                        <span className="no-results-icon">💕</span>
+                        <span className="no-results-icon">Sin matches</span>
                         <h3>Aún no tienes matches</h3>
                         <p>Completa tu perfil para que el sistema pueda calcular tu compatibilidad con otros usuarios</p>
                     </div>

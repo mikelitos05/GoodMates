@@ -62,11 +62,11 @@ function TaskManager() {
             <div className="container">
                 <div className="task-header animate-fade-in-up">
                     <div>
-                        <h1 className="section-title">✅ Task Manager</h1>
+                        <h1 className="section-title">Task Manager</h1>
                         <p className="section-subtitle">Organiza y da seguimiento a las tareas del hogar.</p>
                     </div>
                     <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                        {showForm ? '✕ Cancelar' : '➕ Nueva Tarea'}
+                        {showForm ? '✕ Cancelar' : '+ Nueva Tarea'}
                     </button>
                 </div>
 
@@ -84,7 +84,7 @@ function TaskManager() {
                 {/* New Task Form */}
                 {showForm && (
                     <div className="task-form-card animate-fade-in">
-                        <h2 className="form-card-title">📝 Nueva Tarea</h2>
+                        <h2 className="form-card-title">Nueva Tarea</h2>
                         <form onSubmit={handleSubmit} className="task-form">
                             <div className="form-group">
                                 <label className="form-label">Título</label>
@@ -140,7 +140,7 @@ function TaskManager() {
                             className={`filter-btn ${filter === f ? 'active' : ''}`}
                             onClick={() => setFilter(f)}
                         >
-                            {f === 'all' ? 'Todas' : f === 'pending' ? '⏳ Pendientes' : f === 'completed' ? '✅ Completadas' : '👤 Mis tareas'}
+                            {f === 'all' ? 'Todas' : f === 'pending' ? 'Pendientes' : f === 'completed' ? 'Completadas' : 'Mis tareas'}
                         </button>
                     ))}
                 </div>
@@ -169,14 +169,14 @@ function TaskManager() {
                                                 {assignee.name.split(' ')[0]}
                                             </span>
                                         )}
-                                        <span className="task-due">📅 {task.dueDate}</span>
+                                        <span className="task-due">Vence: {task.dueDate}</span>
                                         <span className={`badge ${task.status === 'completed' ? 'badge-success' : 'badge-warning'}`}>
                                             {task.status === 'completed' ? 'Completada' : 'Pendiente'}
                                         </span>
                                     </div>
                                 </div>
                                 <button className="task-delete" onClick={() => deleteTask(task.id)} title="Eliminar">
-                                    🗑️
+                                    Eliminar
                                 </button>
                             </div>
                         );
@@ -185,7 +185,7 @@ function TaskManager() {
 
                 {filteredTasks.length === 0 && (
                     <div className="no-results">
-                        <span className="no-results-icon">✅</span>
+                        <span className="no-results-icon">Sin tareas</span>
                         <h3>No hay tareas en esta categoría</h3>
                         <p>Crea una nueva tarea para empezar a organizar el hogar</p>
                     </div>

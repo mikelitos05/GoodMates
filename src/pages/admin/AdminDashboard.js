@@ -8,38 +8,38 @@ function AdminDashboard() {
     const [properties] = useState(mockProperties);
 
     const tabs = [
-        { id: 'users', label: '👥 Usuarios', icon: '👥' },
-        { id: 'properties', label: '🏠 Propiedades', icon: '🏠' },
-        { id: 'stats', label: '📊 Estadísticas', icon: '📊' },
+        { id: 'users', label: 'Usuarios', icon: '' },
+        { id: 'properties', label: 'Propiedades', icon: '' },
+        { id: 'stats', label: 'Estadísticas', icon: '' },
     ];
 
     return (
         <div className="admin-page">
             <div className="container">
                 <div className="admin-header animate-fade-in-up">
-                    <h1 className="section-title">🛡️ Panel de Administración</h1>
+                    <h1 className="section-title">Panel de Administración</h1>
                     <p className="section-subtitle">Gestiona usuarios, propiedades y supervisa la actividad del sistema.</p>
                 </div>
 
                 {/* Stats Overview */}
                 <div className="admin-stats animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="stat-card">
-                        <div className="stat-icon">👥</div>
+                        <div className="stat-icon">Usu.</div>
                         <div className="stat-value">{users.length}</div>
                         <div className="stat-label">Usuarios Totales</div>
                     </div>
                     <div className="stat-card">
-                        <div className="stat-icon">🏠</div>
+                        <div className="stat-icon">Prop.</div>
                         <div className="stat-value">{properties.length}</div>
                         <div className="stat-label">Propiedades</div>
                     </div>
                     <div className="stat-card">
-                        <div className="stat-icon">🔑</div>
+                        <div className="stat-icon">Inq.</div>
                         <div className="stat-value">{users.filter((u) => u.role === 'tenant').length}</div>
                         <div className="stat-label">Inquilinos</div>
                     </div>
                     <div className="stat-card">
-                        <div className="stat-icon">🏢</div>
+                        <div className="stat-icon">Arr.</div>
                         <div className="stat-value">{users.filter((u) => u.role === 'landlord').length}</div>
                         <div className="stat-label">Arrendadores</div>
                     </div>

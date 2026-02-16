@@ -35,10 +35,10 @@ function TenantProfile() {
     ];
 
     const sections = [
-        { id: 'personal', label: '👤 Personal', icon: '👤' },
-        { id: 'academic', label: '📚 Académico', icon: '📚' },
-        { id: 'lifestyle', label: '🎯 Estilo de Vida', icon: '🎯' },
-        { id: 'preferences', label: '⚙️ Preferencias', icon: '⚙️' },
+        { id: 'personal', label: 'Personal', icon: '' },
+        { id: 'academic', label: 'Académico', icon: '' },
+        { id: 'lifestyle', label: 'Estilo de Vida', icon: '' },
+        { id: 'preferences', label: 'Preferencias', icon: '' },
     ];
 
     return (
@@ -54,7 +54,7 @@ function TenantProfile() {
                         </div>
                     </div>
                     <button className="btn btn-primary" onClick={handleSave}>
-                        {saved ? '✅ Guardado' : '💾 Guardar Cambios'}
+                        {saved ? 'Guardado' : 'Guardar Cambios'}
                     </button>
                 </div>
 
@@ -207,11 +207,11 @@ function TenantProfile() {
 
                                 <div className="toggle-group">
                                     <label className="toggle-item">
-                                        <span>🐾 Tengo mascotas</span>
+                                        <span>Tengo mascotas</span>
                                         <input type="checkbox" className="toggle-checkbox" checked={profile.pets || false} onChange={(e) => handleChange('pets', e.target.checked)} />
                                     </label>
                                     <label className="toggle-item">
-                                        <span>🚬 Fumo</span>
+                                        <span>Fumo</span>
                                         <input type="checkbox" className="toggle-checkbox" checked={profile.smoking || false} onChange={(e) => handleChange('smoking', e.target.checked)} />
                                     </label>
                                 </div>

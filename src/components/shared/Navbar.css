@@ -28,8 +28,9 @@
     flex-shrink: 0;
 }
 
-.logo-icon {
-    font-size: var(--font-2xl);
+.logo-img {
+    height: 32px;
+    width: auto;
 }
 
 .logo-accent {

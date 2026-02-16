@@ -37,9 +37,9 @@ function LoginPage() {
                             Accede a tu cuenta para seguir conectando con roommates increíbles.
                         </p>
                         <div className="auth-visual-features">
-                            <div className="auth-feature">✨ Revisa tus matches</div>
-                            <div className="auth-feature">📋 Gestiona tus tareas</div>
-                            <div className="auth-feature">🏠 Administra tu espacio</div>
+                            <div className="auth-feature">Revisa tus matches</div>
+                            <div className="auth-feature">Gestiona tus tareas</div>
+                            <div className="auth-feature">Administra tu espacio</div>
                         </div>
                     </div>
                 </div>
@@ -48,7 +48,7 @@ function LoginPage() {
                     <div className="auth-form-wrapper">
                         <div className="auth-header">
                             <Link to="/" className="auth-logo">
-                                <span>🏠</span> Good<span className="text-gradient">Mates</span>
+                                <img src="/logo.svg" alt="GoodMates" style={{ height: '32px', width: 'auto' }} /> Good<span className="text-gradient">Mates</span>
                             </Link>
                             <h1 className="auth-title">Iniciar Sesión</h1>
                             <p className="auth-subtitle">Ingresa tus credenciales para continuar</p>
@@ -56,7 +56,7 @@ function LoginPage() {
 
                         {error && (
                             <div className="auth-error animate-fade-in">
-                                ⚠️ {error}
+                                {error}
                             </div>
                         )}
 
@@ -99,7 +99,7 @@ function LoginPage() {
                         </form>
 
                         <div className="auth-demo-accounts">
-                            <p className="demo-title">🧪 Cuentas de prueba:</p>
+                            <p className="demo-title">Cuentas de prueba:</p>
                             <div className="demo-list">
                                 <button className="demo-account" onClick={() => { setEmail('carlos@goodmates.com'); setPassword('demo'); }}>
                                     <span className="avatar avatar-sm">CM</span>

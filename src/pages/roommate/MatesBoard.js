@@ -49,9 +49,9 @@ function MatesBoard() {
     };
 
     const typeIcons = {
-        announcement: '📢',
-        discussion: '💬',
-        event: '🎉',
+        announcement: 'Aviso',
+        discussion: 'Chat',
+        event: 'Evento',
     };
 
     const typeLabels = {
@@ -76,11 +76,11 @@ function MatesBoard() {
             <div className="container">
                 <div className="board-header animate-fade-in-up">
                     <div>
-                        <h1 className="section-title">📋 Mates Board</h1>
+                        <h1 className="section-title">Mates Board</h1>
                         <p className="section-subtitle">Comparte avisos, noticias e invitaciones con tus roommates.</p>
                     </div>
                     <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                        {showForm ? '✕ Cancelar' : '✏️ Nueva Publicación'}
+                        {showForm ? '✕ Cancelar' : 'Nueva Publicación'}
                     </button>
                 </div>
 

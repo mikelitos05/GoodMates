@@ -78,11 +78,11 @@ function PropertyManager() {
             <div className="container">
                 <div className="manager-header animate-fade-in-up">
                     <div>
-                        <h1 className="section-title">🏢 Mis Propiedades</h1>
+                        <h1 className="section-title">Mis Propiedades</h1>
                         <p className="section-subtitle">Gestiona tus propiedades publicadas en GoodMates.</p>
                     </div>
                     <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(!showForm); }}>
-                        {showForm ? '✕ Cancelar' : '➕ Nueva Propiedad'}
+                        {showForm ? '✕ Cancelar' : '+ Nueva Propiedad'}
                     </button>
                 </div>
 
@@ -90,7 +90,7 @@ function PropertyManager() {
                 {showForm && (
                     <div className="property-form-card animate-fade-in-up">
                         <h2 className="form-card-title">
-                            {editingId ? '✏️ Editar Propiedad' : '🏠 Nueva Propiedad'}
+                            {editingId ? 'Editar Propiedad' : 'Nueva Propiedad'}
                         </h2>
                         <form onSubmit={handleSubmit} className="property-form">
                             <div className="property-form-grid">
@@ -141,7 +141,7 @@ function PropertyManager() {
                             </div>
                             <div className="form-actions">
                                 <button type="submit" className="btn btn-primary btn-lg">
-                                    {editingId ? '💾 Guardar Cambios' : '📤 Publicar Propiedad'}
+                                    {editingId ? 'Guardar Cambios' : 'Publicar Propiedad'}
                                 </button>
                                 <button type="button" className="btn btn-ghost" onClick={resetForm}>Cancelar</button>
                             </div>
@@ -153,7 +153,7 @@ function PropertyManager() {
                 <div className="properties-list">
                     {properties.map((prop) => (
                         <div key={prop.id} className="manager-property-card animate-fade-in-up">
-                            <div className="manager-property-image">🏠</div>
+                            <div className="manager-property-image">Sin imagen</div>
                             <div className="manager-property-content">
                                 <div className="manager-property-header">
                                     <h3 className="manager-property-title">{prop.title}</h3>
@@ -161,12 +161,12 @@ function PropertyManager() {
                                         {prop.available ? 'Activa' : 'Inactiva'}
                                     </span>
                                 </div>
-                                <p className="manager-property-location">📍 {prop.address}, {prop.city}</p>
+                                <p className="manager-property-location">{prop.address}, {prop.city}</p>
                                 <div className="manager-property-meta">
-                                    <span>💰 ${prop.price.toLocaleString()}/mes</span>
-                                    <span>🛏️ {prop.rooms} hab. ({prop.availableRooms} disp.)</span>
-                                    <span>🚿 {prop.bathrooms} baños</span>
-                                    <span>📐 {prop.area}m²</span>
+                                    <span>${prop.price.toLocaleString()}/mes</span>
+                                    <span>{prop.rooms} hab. ({prop.availableRooms} disp.)</span>
+                                    <span>{prop.bathrooms} baños</span>
+                                    <span>{prop.area}m²</span>
                                 </div>
                                 <div className="manager-property-amenities">
                                     {prop.amenities.slice(0, 4).map((a, i) => (
@@ -175,8 +175,8 @@ function PropertyManager() {
                                 </div>
                             </div>
                             <div className="manager-property-actions">
-                                <button className="btn btn-outline btn-sm" onClick={() => handleEdit(prop)}>✏️ Editar</button>
-                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(prop.id)}>🗑️ Eliminar</button>
+                                <button className="btn btn-outline btn-sm" onClick={() => handleEdit(prop)}>Editar</button>
+                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(prop.id)}>Eliminar</button>
                             </div>
                         </div>
                     ))}
@@ -184,7 +184,7 @@ function PropertyManager() {
 
                 {properties.length === 0 && !showForm && (
                     <div className="no-results">
-                        <span className="no-results-icon">🏢</span>
+                        <span className="no-results-icon">Sin propiedades</span>
                         <h3>No tienes propiedades publicadas</h3>
                         <p>Comienza publicando tu primera propiedad</p>
                     </div>
