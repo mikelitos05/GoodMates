@@ -1,0 +1,188 @@
+.matches-page {
+    padding: var(--space-8) 0 var(--space-16);
+    min-height: calc(100vh - 64px);
+}
+
+.matches-header {
+    margin-bottom: var(--space-8);
+}
+
+/* Match Stats */
+.match-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--space-4);
+    margin-bottom: var(--space-8);
+}
+
+.match-stat-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
+    border: 1px solid var(--neutral-200);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.match-stat-icon {
+    font-size: var(--font-2xl);
+}
+
+.match-stat-value {
+    font-size: var(--font-2xl);
+    font-weight: 800;
+    color: var(--primary-600);
+}
+
+.match-stat-label {
+    font-size: var(--font-sm);
+    color: var(--text-muted);
+}
+
+/* Match Cards */
+.match-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.match-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    border: 1px solid var(--neutral-200);
+    display: flex;
+    gap: var(--space-6);
+    align-items: center;
+    transition: all var(--transition-base);
+}
+
+.match-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.match-card.rejected {
+    opacity: 0.5;
+}
+
+.match-card-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-3);
+    flex-shrink: 0;
+}
+
+/* Compatibility Circle */
+.match-compatibility-ring {
+    position: relative;
+    width: 60px;
+    height: 60px;
+}
+
+.compatibility-circle {
+    transform: rotate(-90deg);
+    width: 60px;
+    height: 60px;
+}
+
+.circle-bg {
+    fill: none;
+    stroke: var(--neutral-200);
+    stroke-width: 3;
+}
+
+.circle-fill {
+    fill: none;
+    stroke: url(#gradient);
+    stroke: var(--accent-500);
+    stroke-width: 3;
+    stroke-linecap: round;
+    transition: stroke-dasharray var(--transition-slow);
+}
+
+.compatibility-text {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-xs);
+    font-weight: 800;
+    color: var(--accent-600);
+}
+
+.match-card-center {
+    flex: 1;
+}
+
+.match-name {
+    font-size: var(--font-lg);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: var(--space-1);
+}
+
+.match-detail {
+    font-size: var(--font-sm);
+    color: var(--text-dark-secondary);
+    margin-bottom: var(--space-1);
+}
+
+.match-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin: var(--space-3) 0;
+}
+
+.match-bio {
+    font-size: var(--font-sm);
+    color: var(--text-muted);
+    font-style: italic;
+    margin-top: var(--space-2);
+    line-height: 1.6;
+}
+
+.match-card-right {
+    flex-shrink: 0;
+}
+
+.match-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+}
+
+.match-status-badge {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    font-size: var(--font-sm);
+    font-weight: 600;
+}
+
+.match-status-badge.accepted {
+    background: var(--accent-100);
+    color: var(--accent-700);
+}
+
+.match-status-badge.rejected {
+    background: var(--neutral-100);
+    color: var(--neutral-600);
+}
+
+@media (max-width: 768px) {
+    .match-card {
+        flex-direction: column;
+        text-align: center;
+    }
+
+    .match-tags {
+        justify-content: center;
+    }
+
+    .match-stats {
+        grid-template-columns: 1fr;
+    }
+}

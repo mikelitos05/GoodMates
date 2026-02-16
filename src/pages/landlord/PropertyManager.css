@@ -1,0 +1,137 @@
+.manager-page {
+    padding: var(--space-8) 0 var(--space-16);
+    min-height: calc(100vh - 64px);
+}
+
+.manager-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-8);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+/* Form Card */
+.property-form-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: var(--space-8);
+    border: 1px solid var(--neutral-200);
+    margin-bottom: var(--space-8);
+}
+
+.form-card-title {
+    font-size: var(--font-lg);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: var(--space-6);
+}
+
+.property-form-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-5);
+}
+
+.form-actions {
+    display: flex;
+    gap: var(--space-4);
+    margin-top: var(--space-6);
+    padding-top: var(--space-6);
+    border-top: 1px solid var(--neutral-100);
+}
+
+/* Property Cards */
+.properties-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.manager-property-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
+    border: 1px solid var(--neutral-200);
+    display: flex;
+    gap: var(--space-5);
+    align-items: center;
+    transition: all var(--transition-base);
+}
+
+.manager-property-card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.manager-property-image {
+    width: 80px;
+    height: 80px;
+    border-radius: var(--radius-lg);
+    background: linear-gradient(135deg, var(--primary-100), var(--accent-100));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2rem;
+    flex-shrink: 0;
+}
+
+.manager-property-content {
+    flex: 1;
+}
+
+.manager-property-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin-bottom: var(--space-1);
+}
+
+.manager-property-title {
+    font-size: var(--font-base);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.manager-property-location {
+    font-size: var(--font-sm);
+    color: var(--text-dark-secondary);
+    margin-bottom: var(--space-2);
+}
+
+.manager-property-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-4);
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+    margin-bottom: var(--space-2);
+}
+
+.manager-property-amenities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+}
+
+.manager-property-actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+    .manager-property-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .manager-property-actions {
+        flex-direction: row;
+    }
+
+    .property-form-grid {
+        grid-template-columns: 1fr;
+    }
+}
