@@ -6,8 +6,9 @@ import './LoginPage.css';
 function RegisterPage() {
     const [step, setStep] = useState(1);
     const [role, setRole] = useState('');
-    const [name, setName] = useState('');
-    const [username, setUsername] = useState('');
+    const [nombre, setNombre] = useState('');
+    const [apellido, setApellido] = useState('');
+    const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [error, setError] = useState('');
@@ -37,7 +38,7 @@ function RegisterPage() {
         setLoading(true);
 
         try {
-            const result = await register(name, username, password, role);
+            const result = await register(nombre, apellido, email, password, role);
             if (result.success) {
                 navigate(`/${role}/dashboard`);
             } else {
@@ -104,26 +105,39 @@ function RegisterPage() {
                             </div>
                         ) : (
                             <form onSubmit={handleSubmit} className="auth-form">
-                                <div className="form-group">
-                                    <label className="form-label">Nombre completo</label>
-                                    <input
-                                        type="text"
-                                        className="form-input"
-                                        placeholder="Tu nombre completo"
-                                        value={name}
-                                        onChange={(e) => setName(e.target.value)}
-                                        required
-                                    />
+                                <div className="form-row" style={{ display: 'flex', gap: '1rem' }}>
+                                    <div className="form-group" style={{ flex: 1 }}>
+                                        <label className="form-label">Nombre</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="Nombre"
+                                            value={nombre}
+                                            onChange={(e) => setNombre(e.target.value)}
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group" style={{ flex: 1 }}>
+                                        <label className="form-label">Apellido</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            placeholder="Apellido"
+                                            value={apellido}
+                                            onChange={(e) => setApellido(e.target.value)}
+                                            required
+                                        />
+                                    </div>
                                 </div>
 
                                 <div className="form-group">
-                                    <label className="form-label">Nombre de usuario</label>
+                                    <label className="form-label">Correo electrónico</label>
                                     <input
-                                        type="text"
+                                        type="email"
                                         className="form-input"
-                                        placeholder="Elige un nombre de usuario"
-                                        value={username}
-                                        onChange={(e) => setUsername(e.target.value)}
+                                        placeholder="tu@email.com"
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
                                         required
                                     />
                                 </div>

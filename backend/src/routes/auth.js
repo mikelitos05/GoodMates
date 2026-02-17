@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 
 const SALT_ROUNDS = 10;
@@ -11,13 +12,13 @@ const SALT_ROUNDS = 10;
 // ==========================================
 router.post('/register', async (req, res) => {
     try {
-        const { username, password, full_name, role } = req.body;
+        const { nombre, apellido, email, password, role } = req.body;
 
         // Validaciones
-        if (!username || !password || !full_name) {
+        if (!nombre || !apellido || !email || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Todos los campos son obligatorios (username, password, full_name)',
+                message: 'Todos los campos son obligatorios (nombre, apellido, email, password)',
             });
         }
 
@@ -32,33 +33,36 @@ router.post('/register', async (req, res) => {
         const validRoles = ['tenant', 'landlord'];
         const userRole = validRoles.includes(role) ? role : 'tenant';
 
-        // Verificar si el username ya existe (consulta parametrizada)
+        // Verificar si el email ya existe
         const [existing] = await pool.query(
-            'SELECT id FROM users WHERE username = ?',
-            [username]
+            'SELECT id_usuario FROM usuarios WHERE email = ?',
+            [email]
         );
 
         if (existing.length > 0) {
             return res.status(409).json({
                 success: false,
-                message: 'El nombre de usuario ya está registrado',
+                message: 'El correo electrónico ya está registrado',
             });
         }
 
-        // Hash de la contraseña con bcrypt (10 salt rounds)
+        // Hash de la contraseña
         const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // Insertar usuario (consulta parametrizada)
+        // Generar UUID
+        const id_usuario = uuidv4();
+
+        // Insertar usuario
         const [result] = await pool.query(
-            'INSERT INTO users (username, password_hash, full_name, role) VALUES (?, ?, ?, ?)',
-            [username, password_hash, full_name, userRole]
+            'INSERT INTO usuarios (id_usuario, nombre, apellido, email, contraseña_hash, rol) VALUES (?, ?, ?, ?, ?, ?)',
+            [id_usuario, nombre, apellido, email, password_hash, userRole]
         );
 
-        // Generar JWT (expira en 1 hora)
+        // Generar JWT
         const token = jwt.sign(
             {
-                id: result.insertId,
-                username: username,
+                id: id_usuario,
+                email: email,
                 role: userRole,
             },
             process.env.JWT_SECRET,
@@ -71,15 +75,17 @@ router.post('/register', async (req, res) => {
             message: 'Usuario registrado exitosamente',
             token,
             user: {
-                id: result.insertId,
-                username,
-                full_name,
+                id: id_usuario,
+                nombre,
+                apellido,
+                email,
                 role: userRole,
-                avatar: full_name.split(' ').map((n) => n[0]).join('').toUpperCase(),
+                avatar: (nombre[0] + apellido[0]).toUpperCase(),
             },
         });
 
     } catch (error) {
+        console.error(error);
         res.status(500).json({
             success: false,
             message: 'Error interno del servidor',
@@ -92,20 +98,20 @@ router.post('/register', async (req, res) => {
 // ==========================================
 router.post('/login', async (req, res) => {
     try {
-        const { username, password } = req.body;
+        const { email, password } = req.body;
 
         // Validaciones
-        if (!username || !password) {
+        if (!email || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Username y contraseña son obligatorios',
+                message: 'Email y contraseña son obligatorios',
             });
         }
 
-        // Buscar usuario por username (consulta parametrizada)
+        // Buscar usuario por email
         const [rows] = await pool.query(
-            'SELECT * FROM users WHERE username = ?',
-            [username]
+            'SELECT * FROM usuarios WHERE email = ?',
+            [email]
         );
 
         if (rows.length === 0) {
@@ -117,8 +123,8 @@ router.post('/login', async (req, res) => {
 
         const user = rows[0];
 
-        // Verificar contraseña con bcrypt
-        const isPasswordValid = await bcrypt.compare(password, user.password_hash);
+        // Verificar contraseña
+        const isPasswordValid = await bcrypt.compare(password, user.contraseña_hash);
 
         if (!isPasswordValid) {
             return res.status(401).json({
@@ -127,12 +133,12 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Generar JWT (expira en 1 hora)
+        // Generar JWT
         const token = jwt.sign(
             {
-                id: user.id,
-                username: user.username,
-                role: user.role,
+                id: user.id_usuario,
+                email: user.email,
+                role: user.rol,
             },
             process.env.JWT_SECRET,
             { expiresIn: '1h' }
@@ -144,15 +150,17 @@ router.post('/login', async (req, res) => {
             message: 'Inicio de sesión exitoso',
             token,
             user: {
-                id: user.id,
-                username: user.username,
-                full_name: user.full_name,
-                role: user.role,
-                avatar: user.full_name.split(' ').map((n) => n[0]).join('').toUpperCase(),
+                id: user.id_usuario,
+                nombre: user.nombre,
+                apellido: user.apellido,
+                email: user.email,
+                role: user.rol,
+                avatar: (user.nombre[0] + user.apellido[0]).toUpperCase(),
             },
         });
 
     } catch (error) {
+        console.error(error);
         res.status(500).json({
             success: false,
             message: 'Error interno del servidor',
@@ -177,9 +185,9 @@ router.get('/verify', async (req, res) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Buscar usuario en la BD para confirmar que existe
+        // Buscar usuario en la BD
         const [rows] = await pool.query(
-            'SELECT id, username, full_name, role FROM users WHERE id = ?',
+            'SELECT id_usuario, nombre, apellido, email, rol FROM usuarios WHERE id_usuario = ?',
             [decoded.id]
         );
 
@@ -195,11 +203,12 @@ router.get('/verify', async (req, res) => {
         res.json({
             success: true,
             user: {
-                id: user.id,
-                username: user.username,
-                full_name: user.full_name,
-                role: user.role,
-                avatar: user.full_name.split(' ').map((n) => n[0]).join('').toUpperCase(),
+                id: user.id_usuario,
+                nombre: user.nombre,
+                apellido: user.apellido,
+                email: user.email,
+                role: user.rol,
+                avatar: (user.nombre[0] + user.apellido[0]).toUpperCase(),
             },
         });
 

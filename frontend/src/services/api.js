@@ -5,7 +5,7 @@ const API_URL = 'http://localhost:5000/api';
 // ==========================================
 // Registro de usuario
 // ==========================================
-export const registerUser = async (username, password, fullName, role) => {
+export const registerUser = async (nombre, apellido, email, password, role) => {
     try {
         const response = await fetch(`${API_URL}/auth/register`, {
             method: 'POST',
@@ -13,9 +13,10 @@ export const registerUser = async (username, password, fullName, role) => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                username,
+                nombre,
+                apellido,
+                email,
                 password,
-                full_name: fullName,
                 role,
             }),
         });
@@ -38,14 +39,14 @@ export const registerUser = async (username, password, fullName, role) => {
 // ==========================================
 // Inicio de sesión
 // ==========================================
-export const loginUser = async (username, password) => {
+export const loginUser = async (email, password) => {
     try {
         const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
-            body: JSON.stringify({ username, password }),
+            body: JSON.stringify({ email, password }),
         });
 
         const data = await response.json();

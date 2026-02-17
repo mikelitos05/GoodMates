@@ -19,8 +19,8 @@ export function AuthProvider({ children }) {
         restoreSession();
     }, []);
 
-    const login = async (username, password) => {
-        const result = await loginUser(username, password);
+    const login = async (email, password) => {
+        const result = await loginUser(email, password);
         if (result.success) {
             setUser(result.user);
             return { success: true, user: result.user };
@@ -28,8 +28,8 @@ export function AuthProvider({ children }) {
         return { success: false, error: result.error };
     };
 
-    const register = async (name, username, password, role) => {
-        const result = await registerUser(username, password, name, role);
+    const register = async (nombre, apellido, email, password, role) => {
+        const result = await registerUser(nombre, apellido, email, password, role);
         if (result.success) {
             setUser(result.user);
             return { success: true, user: result.user };

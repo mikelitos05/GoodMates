@@ -3,20 +3,31 @@ const { pool } = require("./db");
 // Crear la tabla users si no existe
 const initDatabase = async () => {
   try {
+    // Eliminar tabla antigua si existe
+    await pool.query('DROP TABLE IF EXISTS users');
+
     const createTableSQL = `
-            CREATE TABLE IF NOT EXISTS users (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                username VARCHAR(100) NOT NULL UNIQUE,
-                password_hash VARCHAR(255) NOT NULL,
-                full_name VARCHAR(200) NOT NULL,
-                role ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant',
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+            CREATE TABLE IF NOT EXISTS usuarios (
+                id_usuario CHAR(36) PRIMARY KEY,
+                nombre VARCHAR(100) NOT NULL,
+                apellido VARCHAR(100) NOT NULL,
+                email VARCHAR(100) NOT NULL UNIQUE,
+                contraseña_hash VARCHAR(255) NOT NULL,
+                fecha_nacimiento DATE,
+                genero VARCHAR(20),
+                universidad VARCHAR(100),
+                carrera VARCHAR(100),
+                biografia TEXT,
+                fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                estado_cuenta ENUM('activo', 'suspendido', 'baja') DEFAULT 'activo',
+                rol ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
         `;
 
     await pool.query(createTableSQL);
+    console.log('Base de datos inicializada: Tabla usuarios creada');
   } catch (error) {
+    console.error('Error inicializando base de datos:', error);
     throw error;
   }
 };
