@@ -1,18 +1,14 @@
-/* =====================================================
-   LANDING PAGE
-   ===================================================== */
-
 .landing {
     overflow-x: hidden;
 }
 
-/* Hero */
+
 .hero {
     position: relative;
     min-height: 90vh;
     display: flex;
     align-items: center;
-    background: var(--bg-primary);
+    background: #000000;
     overflow: hidden;
 }
 
@@ -32,7 +28,7 @@
 .hero-orb-1 {
     width: 500px;
     height: 500px;
-    background: var(--primary-600);
+    background: #000000;
     top: -150px;
     right: -100px;
     animation: float 8s ease-in-out infinite;
@@ -41,7 +37,7 @@
 .hero-orb-2 {
     width: 400px;
     height: 400px;
-    background: var(--accent-500);
+    background: #000000;
     bottom: -100px;
     left: -100px;
     animation: float 10s ease-in-out infinite reverse;
@@ -50,7 +46,7 @@
 .hero-orb-3 {
     width: 300px;
     height: 300px;
-    background: #8b5cf6;
+    background: #000000;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
@@ -123,7 +119,7 @@
     color: var(--neutral-500);
 }
 
-/* Hero Cards */
+
 .hero-visual {
     display: flex;
     justify-content: center;
@@ -154,9 +150,7 @@
     transform: rotate(-2deg);
 }
 
-.hero-card-1:hover {
-    transform: rotate(0deg) translateY(-5px);
-}
+
 
 .hero-card-2 {
     top: 80px;
@@ -207,7 +201,7 @@
     white-space: nowrap;
 }
 
-/* Features */
+
 .features {
     padding: var(--space-24) 0;
     background: var(--bg-light);
@@ -260,7 +254,7 @@
     line-height: 1.7;
 }
 
-/* How it works */
+
 .how-it-works {
     padding: var(--space-24) 0;
     background: white;
@@ -311,7 +305,7 @@
     margin-top: var(--space-4);
 }
 
-/* CTA */
+
 .cta-section {
     padding: var(--space-24) 0;
     background: var(--bg-light);
@@ -340,7 +334,7 @@
     margin-right: auto;
 }
 
-/* Responsive */
+
 @media (max-width: 1024px) {
     .hero-content {
         grid-template-columns: 1fr;

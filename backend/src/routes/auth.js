@@ -7,14 +7,12 @@ const { pool } = require('../config/db');
 
 const SALT_ROUNDS = 10;
 
-// ==========================================
-// POST /api/auth/register - Registro de usuario
-// ==========================================
+
 router.post('/register', async (req, res) => {
     try {
         const { nombre, apellido, email, password, role } = req.body;
 
-        // Validaciones
+        
         if (!nombre || !apellido || !email || !password) {
             return res.status(400).json({
                 success: false,
@@ -29,11 +27,11 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Validar rol
+        
         const validRoles = ['tenant', 'landlord'];
         const userRole = validRoles.includes(role) ? role : 'tenant';
 
-        // Verificar si el email ya existe
+        
         const [existing] = await pool.query(
             'SELECT id_usuario FROM usuarios WHERE email = ?',
             [email]
@@ -46,19 +44,19 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Hash de la contraseña
+        
         const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
 
-        // Generar UUID
+        
         const id_usuario = uuidv4();
 
-        // Insertar usuario
+        
         const [result] = await pool.query(
             'INSERT INTO usuarios (id_usuario, nombre, apellido, email, contraseña_hash, rol) VALUES (?, ?, ?, ?, ?, ?)',
             [id_usuario, nombre, apellido, email, password_hash, userRole]
         );
 
-        // Generar JWT
+        
         const token = jwt.sign(
             {
                 id: id_usuario,
@@ -69,7 +67,7 @@ router.post('/register', async (req, res) => {
             { expiresIn: '1h' }
         );
 
-        // Respuesta exitosa
+        
         res.status(201).json({
             success: true,
             message: 'Usuario registrado exitosamente',
@@ -93,14 +91,12 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// ==========================================
-// POST /api/auth/login - Inicio de sesión
-// ==========================================
+
 router.post('/login', async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Validaciones
+        
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -108,7 +104,7 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Buscar usuario por email
+        
         const [rows] = await pool.query(
             'SELECT * FROM usuarios WHERE email = ?',
             [email]
@@ -123,7 +119,7 @@ router.post('/login', async (req, res) => {
 
         const user = rows[0];
 
-        // Verificar contraseña
+        
         const isPasswordValid = await bcrypt.compare(password, user.contraseña_hash);
 
         if (!isPasswordValid) {
@@ -133,7 +129,7 @@ router.post('/login', async (req, res) => {
             });
         }
 
-        // Generar JWT
+        
         const token = jwt.sign(
             {
                 id: user.id_usuario,
@@ -144,7 +140,7 @@ router.post('/login', async (req, res) => {
             { expiresIn: '1h' }
         );
 
-        // Respuesta exitosa
+        
         res.json({
             success: true,
             message: 'Inicio de sesión exitoso',
@@ -168,9 +164,7 @@ router.post('/login', async (req, res) => {
     }
 });
 
-// ==========================================
-// GET /api/auth/verify - Verificar token JWT
-// ==========================================
+
 router.get('/verify', async (req, res) => {
     try {
         const authHeader = req.headers.authorization;
@@ -185,7 +179,7 @@ router.get('/verify', async (req, res) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Buscar usuario en la BD
+        
         const [rows] = await pool.query(
             'SELECT id_usuario, nombre, apellido, email, rol FROM usuarios WHERE id_usuario = ?',
             [decoded.id]

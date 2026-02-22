@@ -1,0 +1,158 @@
+.property-manager-page {
+    padding: var(--space-5);
+    max-width: 100%;
+}
+
+.manager-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-5);
+    flex-wrap: wrap;
+    gap: var(--space-3);
+}
+
+.manager-title {
+    font-size: var(--font-2xl);
+    font-weight: 800;
+    color: var(--text-dark);
+}
+
+
+.property-form-card {
+    background: white;
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
+    margin-bottom: var(--space-6);
+}
+
+.form-section-title {
+    font-size: var(--font-base);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: var(--space-4);
+    padding-bottom: var(--space-3);
+    border-bottom: 1px solid var(--neutral-100);
+}
+
+.form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+
+.my-properties-section {
+    margin-top: var(--space-5);
+}
+
+.properties-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.property-manage-card {
+    background: white;
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+}
+
+.property-manage-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    padding: var(--space-4);
+}
+
+.property-manage-img {
+    width: 60px;
+    height: 60px;
+    background: linear-gradient(135deg, var(--primary-100), var(--accent-100));
+    border-radius: var(--radius-lg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.property-manage-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.property-manage-name {
+    font-size: var(--font-base);
+    font-weight: 700;
+    color: var(--text-dark);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.property-manage-price {
+    font-size: var(--font-sm);
+    color: var(--primary-600);
+    font-weight: 600;
+}
+
+.property-manage-location {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+.property-manage-actions {
+    display: flex;
+    gap: var(--space-2);
+    padding: 0 var(--space-4) var(--space-4);
+}
+
+.property-manage-actions .btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+    font-size: var(--font-xs);
+}
+
+.landlord-dashboard-page {
+    padding: var(--space-5);
+}
+
+.landlord-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+@media (min-width: 768px) {
+    .property-manager-page {
+        padding: var(--space-8);
+        max-width: 1100px;
+        margin: 0 auto;
+    }
+
+    .form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .properties-list {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: var(--space-5);
+    }
+
+    .landlord-stats {
+        grid-template-columns: repeat(4, 1fr);
+    }
+
+    .landlord-dashboard-page {
+        padding: var(--space-8);
+        max-width: 1200px;
+        margin: 0 auto;
+    }
+}

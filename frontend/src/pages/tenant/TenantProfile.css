@@ -88,7 +88,7 @@
     gap: var(--space-5);
 }
 
-/* Toggles */
+
 .toggle-group {
     display: flex;
     flex-direction: column;
@@ -119,7 +119,7 @@
     accent-color: var(--primary-600);
 }
 
-/* Hobbies */
+
 .hobbies-grid {
     display: flex;
     flex-wrap: wrap;
@@ -147,7 +147,7 @@
     border-color: var(--primary-300);
 }
 
-/* Range Slider */
+
 .slider-group {
     display: flex;
     flex-direction: column;
@@ -210,7 +210,7 @@
     color: var(--text-muted);
 }
 
-/* Responsive */
+
 @media (max-width: 768px) {
     .profile-layout {
         grid-template-columns: 1fr;

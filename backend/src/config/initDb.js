@@ -1,9 +1,9 @@
 const { pool } = require("./db");
 
-// Crear la tabla users si no existe
+
 const initDatabase = async () => {
   try {
-    // Eliminar tabla antigua si existe
+    
     await pool.query('DROP TABLE IF EXISTS users');
 
     const createTableSQL = `

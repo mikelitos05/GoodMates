@@ -7,7 +7,7 @@
     margin-bottom: var(--space-8);
 }
 
-/* Match Stats */
+
 .match-stats {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
@@ -40,7 +40,7 @@
     color: var(--text-muted);
 }
 
-/* Match Cards */
+
 .match-list {
     display: flex;
     flex-direction: column;
@@ -74,7 +74,7 @@
     flex-shrink: 0;
 }
 
-/* Compatibility Circle */
+
 .match-compatibility-ring {
     position: relative;
     width: 60px;

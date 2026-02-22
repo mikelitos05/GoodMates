@@ -7,7 +7,7 @@
     margin-bottom: var(--space-8);
 }
 
-/* Search Bar */
+
 .search-bar {
     display: flex;
     gap: var(--space-3);
@@ -46,7 +46,7 @@
     white-space: nowrap;
 }
 
-/* Filters */
+
 .filters-panel {
     display: flex;
     gap: var(--space-8);
@@ -70,7 +70,7 @@
     color: var(--primary-600);
 }
 
-/* Results */
+
 .search-results-header {
     margin-bottom: var(--space-4);
 }
@@ -81,7 +81,7 @@
     font-weight: 500;
 }
 
-/* Property Cards */
+
 .properties-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
@@ -196,7 +196,7 @@
     color: var(--text-muted);
 }
 
-/* No Results */
+
 .no-results {
     text-align: center;
     padding: var(--space-16);

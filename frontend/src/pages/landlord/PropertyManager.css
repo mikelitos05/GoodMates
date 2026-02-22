@@ -12,7 +12,7 @@
     gap: var(--space-4);
 }
 
-/* Form Card */
+
 .property-form-card {
     background: white;
     border-radius: var(--radius-xl);
@@ -42,7 +42,7 @@
     border-top: 1px solid var(--neutral-100);
 }
 
-/* Property Cards */
+
 .properties-list {
     display: flex;
     flex-direction: column;

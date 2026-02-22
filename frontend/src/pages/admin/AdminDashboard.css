@@ -14,7 +14,7 @@
     margin-bottom: var(--space-8);
 }
 
-/* Tabs */
+
 .admin-tabs {
     display: flex;
     gap: var(--space-2);
@@ -52,7 +52,7 @@
     background: var(--neutral-50);
 }
 
-/* Table */
+
 .admin-table-wrapper {
     overflow-x: auto;
     background: white;
@@ -110,7 +110,7 @@
     color: var(--primary-600);
 }
 
-/* Stats Dashboard */
+
 .stats-dashboard {
     display: grid;
     grid-template-columns: 1fr 1fr;

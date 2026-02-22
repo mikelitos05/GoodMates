@@ -169,7 +169,7 @@
     color: var(--text-dark);
 }
 
-/* Hamburger */
+
 .hamburger {
     display: none;
     flex-direction: column;
@@ -198,7 +198,7 @@
     transform: rotate(-45deg) translate(5px, -5px);
 }
 
-/* Mobile Responsive */
+
 @media (max-width: 900px) {
     .hamburger {
         display: flex;

@@ -1,4 +1,3 @@
-/* Landlord Dashboard — extends base dashboard styles */
 @import '../tenant/TenantDashboard.css';
 
 .landlord-property-list {

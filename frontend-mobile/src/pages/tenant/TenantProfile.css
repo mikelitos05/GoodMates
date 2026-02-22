@@ -1,0 +1,197 @@
+.tenant-profile-page {
+    padding: var(--space-5);
+    max-width: 100%;
+}
+
+.profile-header {
+    background: linear-gradient(135deg, var(--primary-600), var(--accent-500));
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    color: white;
+    margin-bottom: var(--space-5);
+    text-align: center;
+}
+
+.profile-avatar-large {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--font-3xl);
+    font-weight: 800;
+    margin: 0 auto var(--space-3);
+    border: 3px solid rgba(255, 255, 255, 0.3);
+}
+
+.profile-name {
+    font-size: var(--font-xl);
+    font-weight: 800;
+    margin-bottom: var(--space-1);
+}
+
+.profile-role {
+    font-size: var(--font-sm);
+    opacity: 0.8;
+    text-transform: capitalize;
+}
+
+.profile-completion {
+    margin-top: var(--space-4);
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius-lg);
+    padding: var(--space-3);
+}
+
+.completion-label {
+    font-size: var(--font-xs);
+    opacity: 0.8;
+    margin-bottom: var(--space-2);
+}
+
+.completion-bar {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.completion-fill {
+    height: 100%;
+    background: white;
+    border-radius: var(--radius-full);
+    transition: width 0.5s ease;
+}
+
+
+.profile-sections {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.profile-card {
+    background: white;
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-xl);
+    padding: var(--space-5);
+}
+
+.profile-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.profile-card-title {
+    font-size: var(--font-base);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.profile-edit-btn {
+    font-size: var(--font-sm);
+    color: var(--primary-600);
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.profile-form-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+}
+
+
+.preferences-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-3);
+}
+
+.preference-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-3);
+    background: var(--neutral-50);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-lg);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.preference-item.selected {
+    background: var(--primary-50);
+    border-color: var(--primary-300);
+}
+
+.preference-icon {
+    font-size: 1.25rem;
+}
+
+.preference-label {
+    font-size: var(--font-xs);
+    font-weight: 500;
+    color: var(--text-dark);
+}
+
+
+.profile-save-bar {
+    position: sticky;
+    bottom: 0;
+    background: white;
+    border-top: 1px solid var(--neutral-200);
+    padding: var(--space-4) var(--space-5);
+    display: flex;
+    gap: var(--space-3);
+    z-index: 10;
+}
+
+.profile-save-bar .btn {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+}
+
+@media (min-width: 768px) {
+    .tenant-profile-page {
+        padding: var(--space-8);
+        max-width: 900px;
+        margin: 0 auto;
+    }
+
+    .profile-header {
+        text-align: left;
+        display: flex;
+        align-items: center;
+        gap: var(--space-5);
+    }
+
+    .profile-avatar-large {
+        margin: 0;
+    }
+
+    .profile-form-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .preferences-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .profile-save-bar {
+        position: static;
+        border-top: none;
+        padding: 0;
+        justify-content: flex-end;
+    }
+
+    .profile-save-bar .btn {
+        flex: none;
+        width: auto;
+    }
+}

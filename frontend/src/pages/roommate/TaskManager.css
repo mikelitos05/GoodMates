@@ -12,7 +12,7 @@
     gap: var(--space-4);
 }
 
-/* Progress */
+
 .task-progress {
     background: white;
     border-radius: var(--radius-xl);
@@ -38,7 +38,7 @@
     color: var(--text-muted);
 }
 
-/* Task Form */
+
 .task-form-card {
     background: white;
     border-radius: var(--radius-xl);
@@ -59,7 +59,7 @@
     gap: var(--space-4);
 }
 
-/* Filters */
+
 .task-filters {
     display: flex;
     gap: var(--space-2);
@@ -91,7 +91,7 @@
     border-color: var(--primary-600);
 }
 
-/* Task Cards */
+
 .task-list {
     display: flex;
     flex-direction: column;
