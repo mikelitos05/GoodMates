@@ -11,20 +11,20 @@ function IntroVideo({ onFinish }) {
         setTimeout(() => {
             setVisible(false);
             if (onFinish) onFinish();
-        }, 600); 
+        }, 600);
     };
 
-    
+
     const handleError = () => handleEnd();
 
-    
+
     const handleSkip = () => handleEnd();
 
     useEffect(() => {
         const vid = videoRef.current;
         if (vid) {
             vid.play().catch(() => {
-                
+
                 handleEnd();
             });
         }
@@ -37,7 +37,7 @@ function IntroVideo({ onFinish }) {
             <video
                 ref={videoRef}
                 className="intro-video"
-                src="/video_intro.mp4"
+                src="/Video_intro.mp4"
                 muted
                 playsInline
                 onEnded={handleEnd}
