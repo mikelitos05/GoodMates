@@ -5,18 +5,18 @@ const initDatabase = async () => {
   try {
     // Eliminar tablas en orden inverso de dependencia para evitar errores de FK
     // Esto asegura que el esquema siempre este actualizado
-    await pool.query('DROP TABLE IF EXISTS notificaciones');
-    await pool.query('DROP TABLE IF EXISTS calificaciones');
-    await pool.query('DROP TABLE IF EXISTS respuestas_board');
-    await pool.query('DROP TABLE IF EXISTS publicaciones_board');
-    await pool.query('DROP TABLE IF EXISTS tareas');
-    await pool.query('DROP TABLE IF EXISTS miembros_grupo');
-    await pool.query('DROP TABLE IF EXISTS grupos_roommates');
-    await pool.query('DROP TABLE IF EXISTS matches');
-    await pool.query('DROP TABLE IF EXISTS propiedades');
-    await pool.query('DROP TABLE IF EXISTS perfiles');
-    await pool.query('DROP TABLE IF EXISTS usuarios');
-    console.log('Tablas anteriores eliminadas');
+    // await pool.query('DROP TABLE IF EXISTS notificaciones');
+    // await pool.query('DROP TABLE IF EXISTS calificaciones');
+    // await pool.query('DROP TABLE IF EXISTS respuestas_board');
+    // await pool.query('DROP TABLE IF EXISTS publicaciones_board');
+    // await pool.query('DROP TABLE IF EXISTS tareas');
+    // await pool.query('DROP TABLE IF EXISTS miembros_grupo');
+    // await pool.query('DROP TABLE IF EXISTS grupos_roommates');
+    // await pool.query('DROP TABLE IF EXISTS matches');
+    // await pool.query('DROP TABLE IF EXISTS propiedades');
+    // await pool.query('DROP TABLE IF EXISTS perfiles');
+    // await pool.query('DROP TABLE IF EXISTS usuarios');
+    // console.log('Tablas anteriores eliminadas');
 
     // Tabla de usuarios (autenticacion y datos basicos)
     await pool.query(`
