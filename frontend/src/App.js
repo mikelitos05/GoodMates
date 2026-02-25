@@ -32,6 +32,10 @@ import MatesBoard from './pages/roommate/MatesBoard';
 
 import AdminDashboard from './pages/admin/AdminDashboard';
 
+import TermsPage from './pages/legal/TermsPage';
+import PrivacyPage from './pages/legal/PrivacyPage';
+import ContactPage from './pages/legal/ContactPage';
+
 function App() {
   const [showIntro, setShowIntro] = useState(true);
 
@@ -47,12 +51,12 @@ function App() {
           <Navbar />
           <main className="main-content">
             <Routes>
-              
+
               <Route path="/" element={<LandingPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
 
-              
+
               <Route path="/tenant/dashboard" element={
                 <ProtectedRoute allowedRoles={['tenant']}>
                   <TenantDashboard />
@@ -79,7 +83,7 @@ function App() {
                 </ProtectedRoute>
               } />
 
-              
+
               <Route path="/landlord/dashboard" element={
                 <ProtectedRoute allowedRoles={['landlord']}>
                   <LandlordDashboard />
@@ -91,7 +95,7 @@ function App() {
                 </ProtectedRoute>
               } />
 
-              
+
               <Route path="/roommate/group" element={
                 <ProtectedRoute allowedRoles={['tenant']}>
                   <RoommateGroup />
@@ -108,14 +112,19 @@ function App() {
                 </ProtectedRoute>
               } />
 
-              
+
               <Route path="/admin/dashboard" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminDashboard />
                 </ProtectedRoute>
               } />
 
-              
+              {/* Páginas legales (públicas) */}
+              <Route path="/terminos" element={<TermsPage />} />
+              <Route path="/privacidad" element={<PrivacyPage />} />
+              <Route path="/contacto" element={<ContactPage />} />
+
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </main>

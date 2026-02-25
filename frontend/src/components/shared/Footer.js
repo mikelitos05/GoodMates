@@ -33,9 +33,9 @@ function Footer() {
 
                     <div className="footer-column">
                         <h4 className="footer-heading">Soporte</h4>
-                        <span className="footer-link">Términos y Condiciones</span>
-                        <span className="footer-link">Privacidad</span>
-                        <span className="footer-link">Contacto</span>
+                        <Link to="/terminos" className="footer-link">Términos y Condiciones</Link>
+                        <Link to="/privacidad" className="footer-link">Privacidad</Link>
+                        <Link to="/contacto" className="footer-link">Contacto</Link>
                     </div>
                 </div>
 
