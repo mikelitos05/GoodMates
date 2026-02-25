@@ -1,16 +1,50 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRatings } from '../../services/api';
+import { getUserRatings, getMyProfile, updateProfile as apiUpdateProfile } from '../../services/api';
 import './TenantProfile.css';
 
 function TenantProfile() {
-    const { user, updateProfile } = useAuth();
-    const [profile, setProfile] = useState(user?.profile || {});
+    const { user } = useAuth();
+    const [profile, setProfile] = useState({});
     const [saved, setSaved] = useState(false);
+    const [saving, setSaving] = useState(false);
     const [activeSection, setActiveSection] = useState('personal');
     const [reputacion, setReputacion] = useState(null);
     const [calificaciones, setCalificaciones] = useState([]);
+    const [loading, setLoading] = useState(true);
 
+    // Cargar perfil del backend al montar
+    useEffect(() => {
+        const fetchProfile = async () => {
+            setLoading(true);
+            const result = await getMyProfile();
+            if (result.success && result.perfil) {
+                const p = result.perfil;
+                setProfile({
+                    edad: p.edad || '',
+                    genero: p.genero || '',
+                    ciudad: p.ciudad || '',
+                    presupuesto: p.presupuesto || '',
+                    biografia: p.biografia || '',
+                    universidad: p.universidad || '',
+                    carrera: p.carrera || '',
+                    semestre: p.semestre || '',
+                    ocupacion: p.ocupacion || '',
+                    horario: p.horario || '',
+                    visitantes: p.visitantes || '',
+                    mascotas: p.mascotas || false,
+                    fumador: p.fumador || false,
+                    limpieza: p.limpieza || 3,
+                    ruido: p.ruido || 3,
+                    hobbies: (typeof p.hobbies === 'string' ? JSON.parse(p.hobbies) : p.hobbies) || [],
+                });
+            }
+            setLoading(false);
+        };
+        fetchProfile();
+    }, []);
+
+    // Cargar calificaciones
     useEffect(() => {
         const fetchRatings = async () => {
             if (user?.id) {
@@ -38,10 +72,16 @@ function TenantProfile() {
         }
     };
 
-    const handleSave = () => {
-        updateProfile(profile);
-        setSaved(true);
-        setTimeout(() => setSaved(false), 3000);
+    const handleSave = async () => {
+        setSaving(true);
+        const result = await apiUpdateProfile(profile);
+        setSaving(false);
+        if (result.success) {
+            setSaved(true);
+            setTimeout(() => setSaved(false), 3000);
+        } else {
+            alert('Error al guardar el perfil: ' + (result.error || 'Error desconocido'));
+        }
     };
 
     const allHobbies = [
@@ -71,8 +111,8 @@ function TenantProfile() {
                             <span className="badge badge-primary">Inquilino</span>
                         </div>
                     </div>
-                    <button className="btn btn-primary" onClick={handleSave}>
-                        {saved ? 'Guardado' : 'Guardar Cambios'}
+                    <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+                        {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar Cambios'}
                     </button>
                 </div>
 
@@ -101,14 +141,14 @@ function TenantProfile() {
                                         <input
                                             type="number"
                                             className="form-input"
-                                            value={profile.age || ''}
-                                            onChange={(e) => handleChange('age', parseInt(e.target.value))}
+                                            value={profile.edad || ''}
+                                            onChange={(e) => handleChange('edad', parseInt(e.target.value) || '')}
                                             placeholder="Tu edad"
                                         />
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Género</label>
-                                        <select className="form-select" value={profile.gender || ''} onChange={(e) => handleChange('gender', e.target.value)}>
+                                        <select className="form-select" value={profile.genero || ''} onChange={(e) => handleChange('genero', e.target.value)}>
                                             <option value="">Seleccionar</option>
                                             <option value="Masculino">Masculino</option>
                                             <option value="Femenino">Femenino</option>
@@ -121,8 +161,8 @@ function TenantProfile() {
                                         <input
                                             type="text"
                                             className="form-input"
-                                            value={profile.city || ''}
-                                            onChange={(e) => handleChange('city', e.target.value)}
+                                            value={profile.ciudad || ''}
+                                            onChange={(e) => handleChange('ciudad', e.target.value)}
                                             placeholder="Tu ciudad"
                                         />
                                     </div>
@@ -131,8 +171,8 @@ function TenantProfile() {
                                         <input
                                             type="number"
                                             className="form-input"
-                                            value={profile.budget || ''}
-                                            onChange={(e) => handleChange('budget', parseInt(e.target.value))}
+                                            value={profile.presupuesto || ''}
+                                            onChange={(e) => handleChange('presupuesto', parseInt(e.target.value) || '')}
                                             placeholder="Ej. 5000"
                                         />
                                     </div>
@@ -141,8 +181,8 @@ function TenantProfile() {
                                     <label className="form-label">Biografía</label>
                                     <textarea
                                         className="form-textarea"
-                                        value={profile.bio || ''}
-                                        onChange={(e) => handleChange('bio', e.target.value)}
+                                        value={profile.biografia || ''}
+                                        onChange={(e) => handleChange('biografia', e.target.value)}
                                         placeholder="Cuéntanos sobre ti..."
                                         rows={4}
                                     />
@@ -159,8 +199,8 @@ function TenantProfile() {
                                         <input
                                             type="text"
                                             className="form-input"
-                                            value={profile.university || ''}
-                                            onChange={(e) => handleChange('university', e.target.value)}
+                                            value={profile.universidad || ''}
+                                            onChange={(e) => handleChange('universidad', e.target.value)}
                                             placeholder="Tu universidad"
                                         />
                                     </div>
@@ -169,8 +209,8 @@ function TenantProfile() {
                                         <input
                                             type="text"
                                             className="form-input"
-                                            value={profile.career || ''}
-                                            onChange={(e) => handleChange('career', e.target.value)}
+                                            value={profile.carrera || ''}
+                                            onChange={(e) => handleChange('carrera', e.target.value)}
                                             placeholder="Tu carrera"
                                         />
                                     </div>
@@ -179,8 +219,8 @@ function TenantProfile() {
                                         <input
                                             type="number"
                                             className="form-input"
-                                            value={profile.semester || ''}
-                                            onChange={(e) => handleChange('semester', parseInt(e.target.value))}
+                                            value={profile.semestre || ''}
+                                            onChange={(e) => handleChange('semestre', parseInt(e.target.value) || '')}
                                             placeholder="Semestre actual"
                                         />
                                     </div>
@@ -189,8 +229,8 @@ function TenantProfile() {
                                         <input
                                             type="text"
                                             className="form-input"
-                                            value={profile.occupation || ''}
-                                            onChange={(e) => handleChange('occupation', e.target.value)}
+                                            value={profile.ocupacion || ''}
+                                            onChange={(e) => handleChange('ocupacion', e.target.value)}
                                             placeholder="Ej. Estudiante, Freelancer"
                                         />
                                     </div>
@@ -204,7 +244,7 @@ function TenantProfile() {
                                 <div className="profile-form-grid">
                                     <div className="form-group">
                                         <label className="form-label">Horario</label>
-                                        <select className="form-select" value={profile.schedule || ''} onChange={(e) => handleChange('schedule', e.target.value)}>
+                                        <select className="form-select" value={profile.horario || ''} onChange={(e) => handleChange('horario', e.target.value)}>
                                             <option value="">Seleccionar</option>
                                             <option value="Matutino">Matutino</option>
                                             <option value="Vespertino">Vespertino</option>
@@ -214,7 +254,7 @@ function TenantProfile() {
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Visitantes</label>
-                                        <select className="form-select" value={profile.visitors || ''} onChange={(e) => handleChange('visitors', e.target.value)}>
+                                        <select className="form-select" value={profile.visitantes || ''} onChange={(e) => handleChange('visitantes', e.target.value)}>
                                             <option value="">Seleccionar</option>
                                             <option value="Raramente">Raramente</option>
                                             <option value="Ocasionalmente">Ocasionalmente</option>
@@ -226,11 +266,11 @@ function TenantProfile() {
                                 <div className="toggle-group">
                                     <label className="toggle-item">
                                         <span>Tengo mascotas</span>
-                                        <input type="checkbox" className="toggle-checkbox" checked={profile.pets || false} onChange={(e) => handleChange('pets', e.target.checked)} />
+                                        <input type="checkbox" className="toggle-checkbox" checked={profile.mascotas || false} onChange={(e) => handleChange('mascotas', e.target.checked)} />
                                     </label>
                                     <label className="toggle-item">
                                         <span>Fumo</span>
-                                        <input type="checkbox" className="toggle-checkbox" checked={profile.smoking || false} onChange={(e) => handleChange('smoking', e.target.checked)} />
+                                        <input type="checkbox" className="toggle-checkbox" checked={profile.fumador || false} onChange={(e) => handleChange('fumador', e.target.checked)} />
                                     </label>
                                 </div>
 
@@ -259,14 +299,14 @@ function TenantProfile() {
                                     <div className="slider-item">
                                         <div className="slider-header">
                                             <label className="form-label">Nivel de limpieza</label>
-                                            <span className="slider-value">{profile.cleanliness || 3}/5</span>
+                                            <span className="slider-value">{profile.limpieza || 3}/5</span>
                                         </div>
                                         <input
                                             type="range"
                                             min="1"
                                             max="5"
-                                            value={profile.cleanliness || 3}
-                                            onChange={(e) => handleChange('cleanliness', parseInt(e.target.value))}
+                                            value={profile.limpieza || 3}
+                                            onChange={(e) => handleChange('limpieza', parseInt(e.target.value))}
                                             className="range-slider"
                                         />
                                         <div className="slider-labels">
@@ -278,14 +318,14 @@ function TenantProfile() {
                                     <div className="slider-item">
                                         <div className="slider-header">
                                             <label className="form-label">Tolerancia al ruido</label>
-                                            <span className="slider-value">{profile.noise || 3}/5</span>
+                                            <span className="slider-value">{profile.ruido || 3}/5</span>
                                         </div>
                                         <input
                                             type="range"
                                             min="1"
                                             max="5"
-                                            value={profile.noise || 3}
-                                            onChange={(e) => handleChange('noise', parseInt(e.target.value))}
+                                            value={profile.ruido || 3}
+                                            onChange={(e) => handleChange('ruido', parseInt(e.target.value))}
                                             className="range-slider"
                                         />
                                         <div className="slider-labels">

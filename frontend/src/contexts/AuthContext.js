@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { loginUser, registerUser, verifyToken, logoutUser } from '../services/api';
+import { loginUser, registerUser, verifyToken, logoutUser, updateProfile as apiUpdateProfile, getMyProfile } from '../services/api';
 
 const AuthContext = createContext(null);
 
@@ -42,11 +42,29 @@ export function AuthProvider({ children }) {
         setUser(null);
     };
 
-    const updateProfile = (profileData) => {
-        setUser((prev) => ({
-            ...prev,
-            profile: { ...prev.profile, ...profileData },
-        }));
+    // Actualizar perfil: envía datos al backend y actualiza estado local
+    const updateProfile = async (profileData) => {
+        const result = await apiUpdateProfile(profileData);
+        if (result.success) {
+            // Actualizar el estado local del usuario con los datos del perfil
+            setUser((prev) => ({
+                ...prev,
+                profile: { ...prev?.profile, ...profileData },
+            }));
+        }
+        return result;
+    };
+
+    // Cargar perfil extendido del backend
+    const loadProfile = async () => {
+        const result = await getMyProfile();
+        if (result.success && result.perfil) {
+            setUser((prev) => ({
+                ...prev,
+                profile: result.perfil,
+            }));
+        }
+        return result;
     };
 
 
@@ -67,7 +85,7 @@ export function AuthProvider({ children }) {
     }
 
     return (
-        <AuthContext.Provider value={{ user, login, register, logout, updateProfile }}>
+        <AuthContext.Provider value={{ user, login, register, logout, updateProfile, loadProfile }}>
             {children}
         </AuthContext.Provider>
     );
