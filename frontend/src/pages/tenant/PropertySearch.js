@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { getProperties } from '../../services/api';
+import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import './PropertySearch.css';
 
 function PropertySearch() {
     const [search, setSearch] = useState('');
-    const [priceRange, setPriceRange] = useState([0, 10000]);
+    const [priceRange, setPriceRange] = useState([0, 15000]);
     const [minRooms, setMinRooms] = useState(0);
+    const [filterState, setFilterState] = useState('');
+    const [filterCity, setFilterCity] = useState('');
     const [showFilters, setShowFilters] = useState(false);
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -35,7 +38,10 @@ function PropertySearch() {
         const rooms = p.habitaciones_disponibles || p.availableRooms || 0;
         const matchesRooms = rooms >= minRooms;
         const available = p.disponible !== undefined ? p.disponible : (p.available !== undefined ? p.available : true);
-        return matchesSearch && matchesPrice && matchesRooms && available;
+        const state = (p.estado_ubicacion || p.state || '').toLowerCase();
+        const matchesState = !filterState || state === filterState.toLowerCase();
+        const matchesCity = !filterCity || city === filterCity.toLowerCase();
+        return matchesSearch && matchesPrice && matchesRooms && available && matchesState && matchesCity;
     });
 
     return (
@@ -88,6 +94,24 @@ function PropertySearch() {
                                 className="range-slider"
                             />
                             <span className="filter-value">${priceRange[1].toLocaleString()}</span>
+                        </div>
+                        <div className="filter-group">
+                            <label className="form-label">Estado</label>
+                            <select className="form-select" value={filterState} onChange={(e) => { setFilterState(e.target.value); setFilterCity(''); }}>
+                                <option value="">Todos los estados</option>
+                                {getEstados().map((est) => (
+                                    <option key={est} value={est}>{est}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div className="filter-group">
+                            <label className="form-label">Ciudad</label>
+                            <select className="form-select" value={filterCity} onChange={(e) => setFilterCity(e.target.value)} disabled={!filterState}>
+                                <option value="">{filterState ? 'Todas las ciudades' : 'Selecciona un estado'}</option>
+                                {getCiudades(filterState).map((cd) => (
+                                    <option key={cd} value={cd}>{cd}</option>
+                                ))}
+                            </select>
                         </div>
                         <div className="filter-group">
                             <label className="form-label">Habitaciones disponibles mínimas</label>

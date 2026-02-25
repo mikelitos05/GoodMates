@@ -121,6 +121,62 @@
     flex-shrink: 0;
 }
 
+/* Chips for amenities and rules */
+.chips-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-top: var(--space-3);
+}
+
+.chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-3);
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: var(--radius-full);
+    font-size: var(--font-xs);
+    font-weight: 500;
+    color: var(--primary-700);
+    animation: chipIn 0.2s ease-out;
+}
+
+@keyframes chipIn {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+.chip-remove {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: none;
+    background: rgba(99, 102, 241, 0.15);
+    border-radius: 50%;
+    color: var(--primary-600);
+    font-size: 10px;
+    cursor: pointer;
+    padding: 0;
+    line-height: 1;
+    transition: all var(--transition-fast);
+}
+
+.chip-remove:hover {
+    background: var(--error-500);
+    color: white;
+}
+
 @media (max-width: 768px) {
     .manager-property-card {
         flex-direction: column;

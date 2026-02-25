@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getMyProperties, createProperty, updateProperty, deleteProperty } from '../../services/api';
+import { getEstados, getCiudades } from '../../data/mexicoLocations';
+import { AMENIDADES, REGLAS } from '../../data/propertyOptions';
 import './PropertyManager.css';
 
 function PropertyManager() {
@@ -12,7 +14,7 @@ function PropertyManager() {
     const [form, setForm] = useState({
         title: '', description: '', address: '', city: 'Monterrey', state: 'Nuevo León',
         price: '', rooms: '', bathrooms: '', availableRooms: '', area: '',
-        amenities: '', rules: '',
+        amenities: [], rules: [],
     });
 
     useEffect(() => {
@@ -49,8 +51,8 @@ function PropertyManager() {
         setForm({
             title, description, address, city, state, price, rooms,
             bathrooms, availableRooms, area,
-            amenities: Array.isArray(amenities) ? amenities.join(', ') : amenities,
-            rules: Array.isArray(rules) ? rules.join(', ') : rules,
+            amenities: Array.isArray(amenities) ? amenities : [],
+            rules: Array.isArray(rules) ? rules : [],
         });
         setEditingId(prop.id_propiedad || prop.id);
         setShowForm(true);
@@ -76,8 +78,8 @@ function PropertyManager() {
             banos: parseInt(form.bathrooms),
             habitaciones_disponibles: parseInt(form.availableRooms),
             area: parseInt(form.area) || null,
-            amenidades: form.amenities.split(',').map((a) => a.trim()).filter(Boolean),
-            reglas: form.rules.split(',').map((r) => r.trim()).filter(Boolean),
+            amenidades: form.amenities,
+            reglas: form.rules,
         };
 
         let result;
@@ -93,11 +95,21 @@ function PropertyManager() {
         }
     };
 
+    const addToList = (field, value) => {
+        if (value && !form[field].includes(value)) {
+            setForm((prev) => ({ ...prev, [field]: [...prev[field], value] }));
+        }
+    };
+
+    const removeFromList = (field, value) => {
+        setForm((prev) => ({ ...prev, [field]: prev[field].filter((item) => item !== value) }));
+    };
+
     const resetForm = () => {
         setForm({
             title: '', description: '', address: '', city: 'Monterrey', state: 'Nuevo León',
             price: '', rooms: '', bathrooms: '', availableRooms: '', area: '',
-            amenities: '', rules: '',
+            amenities: [], rules: [],
         });
         setEditingId(null);
         setShowForm(false);
@@ -133,8 +145,22 @@ function PropertyManager() {
                                     <input type="text" className="form-input" value={form.address} onChange={(e) => handleChange('address', e.target.value)} placeholder="Calle y colonia" required />
                                 </div>
                                 <div className="form-group">
+                                    <label className="form-label">Estado</label>
+                                    <select className="form-select" value={form.state} onChange={(e) => { handleChange('state', e.target.value); handleChange('city', ''); }} required>
+                                        <option value="">Seleccionar estado</option>
+                                        {getEstados().map((est) => (
+                                            <option key={est} value={est}>{est}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div className="form-group">
                                     <label className="form-label">Ciudad</label>
-                                    <input type="text" className="form-input" value={form.city} onChange={(e) => handleChange('city', e.target.value)} required />
+                                    <select className="form-select" value={form.city} onChange={(e) => handleChange('city', e.target.value)} required disabled={!form.state}>
+                                        <option value="">{form.state ? 'Seleccionar ciudad' : 'Primero selecciona un estado'}</option>
+                                        {getCiudades(form.state).map((cd) => (
+                                            <option key={cd} value={cd}>{cd}</option>
+                                        ))}
+                                    </select>
                                 </div>
                                 <div className="form-group">
                                     <label className="form-label">Precio por habitación (MXN/mes)</label>
@@ -160,13 +186,43 @@ function PropertyManager() {
                                     <label className="form-label">Descripción</label>
                                     <textarea className="form-textarea" value={form.description} onChange={(e) => handleChange('description', e.target.value)} placeholder="Describe tu propiedad..." required />
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">Amenidades (separadas por coma)</label>
-                                    <input type="text" className="form-input" value={form.amenities} onChange={(e) => handleChange('amenities', e.target.value)} placeholder="WiFi, Estacionamiento, Lavadora" />
+                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                    <label className="form-label">Amenidades</label>
+                                    <select className="form-select" value="" onChange={(e) => { addToList('amenities', e.target.value); e.target.value = ''; }}>
+                                        <option value="">+ Agregar amenidad...</option>
+                                        {AMENIDADES.filter((a) => !form.amenities.includes(a)).map((a) => (
+                                            <option key={a} value={a}>{a}</option>
+                                        ))}
+                                    </select>
+                                    {form.amenities.length > 0 && (
+                                        <div className="chips-container">
+                                            {form.amenities.map((a) => (
+                                                <span key={a} className="chip">
+                                                    {a}
+                                                    <button type="button" className="chip-remove" onClick={() => removeFromList('amenities', a)}>✕</button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="form-group">
-                                    <label className="form-label">Reglas (separadas por coma)</label>
-                                    <input type="text" className="form-input" value={form.rules} onChange={(e) => handleChange('rules', e.target.value)} placeholder="No fumar, Horario de silencio" />
+                                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                                    <label className="form-label">Reglas</label>
+                                    <select className="form-select" value="" onChange={(e) => { addToList('rules', e.target.value); e.target.value = ''; }}>
+                                        <option value="">+ Agregar regla...</option>
+                                        {REGLAS.filter((r) => !form.rules.includes(r)).map((r) => (
+                                            <option key={r} value={r}>{r}</option>
+                                        ))}
+                                    </select>
+                                    {form.rules.length > 0 && (
+                                        <div className="chips-container">
+                                            {form.rules.map((r) => (
+                                                <span key={r} className="chip">
+                                                    {r}
+                                                    <button type="button" className="chip-remove" onClick={() => removeFromList('rules', r)}>✕</button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                             <div className="form-actions">
