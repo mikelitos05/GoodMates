@@ -15,7 +15,7 @@ function LandlordDashboard() {
                 <div className="dashboard-welcome animate-fade-in-up">
                     <div className="welcome-text">
                         <h1 className="welcome-title">
-                            ¡Hola, <span className="text-gradient">{(user?.full_name || user?.name || '').split(' ')[0]}</span>!
+                            ¡Hola, <span className="text-gradient">{user?.nombre || user?.username || ''}</span>!
                         </h1>
                         <p className="welcome-subtitle">
                             Gestiona tus propiedades y revisa el interés de los inquilinos.

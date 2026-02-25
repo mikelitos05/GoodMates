@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserRatings } from '../../services/api';
 import './TenantProfile.css';
 
 function TenantProfile() {
@@ -7,6 +8,21 @@ function TenantProfile() {
     const [profile, setProfile] = useState(user?.profile || {});
     const [saved, setSaved] = useState(false);
     const [activeSection, setActiveSection] = useState('personal');
+    const [reputacion, setReputacion] = useState(null);
+    const [calificaciones, setCalificaciones] = useState([]);
+
+    useEffect(() => {
+        const fetchRatings = async () => {
+            if (user?.id) {
+                const result = await getUserRatings(user.id);
+                if (result.success) {
+                    setReputacion(result.reputacion);
+                    setCalificaciones(result.calificaciones || []);
+                }
+            }
+        };
+        fetchRatings();
+    }, [user?.id]);
 
     const handleChange = (field, value) => {
         setProfile((prev) => ({ ...prev, [field]: value }));
@@ -39,7 +55,9 @@ function TenantProfile() {
         { id: 'academic', label: 'Académico', icon: '' },
         { id: 'lifestyle', label: 'Estilo de Vida', icon: '' },
         { id: 'preferences', label: 'Preferencias', icon: '' },
+        { id: 'reputation', label: 'Reputación', icon: '' },
     ];
+
 
     return (
         <div className="profile-page">
@@ -48,7 +66,7 @@ function TenantProfile() {
                     <div className="profile-header-left">
                         <div className="avatar avatar-xl">{user?.avatar}</div>
                         <div>
-                            <h1 className="profile-title">{user?.full_name || user?.name}</h1>
+                            <h1 className="profile-title">{`${user?.nombre || ''} ${user?.apellido || ''}`.trim() || user?.username}</h1>
                             <p className="profile-email">@{user?.username}</p>
                             <span className="badge badge-primary">Inquilino</span>
                         </div>
@@ -59,7 +77,7 @@ function TenantProfile() {
                 </div>
 
                 <div className="profile-layout">
-                    
+
                     <div className="profile-nav">
                         {sections.map((section) => (
                             <button
@@ -72,7 +90,7 @@ function TenantProfile() {
                         ))}
                     </div>
 
-                    
+
                     <div className="profile-content animate-fade-in">
                         {activeSection === 'personal' && (
                             <div className="profile-section">
@@ -276,6 +294,74 @@ function TenantProfile() {
                                         </div>
                                     </div>
                                 </div>
+                            </div>
+                        )}
+
+                        {activeSection === 'reputation' && (
+                            <div className="profile-section">
+                                <h2 className="profile-section-title">Mi Reputación</h2>
+                                {reputacion && reputacion.total_calificaciones > 0 ? (
+                                    <>
+                                        <div className="reputation-overview">
+                                            <div className="reputation-score-big">
+                                                <span className="score-number">{reputacion.promedio_general}</span>
+                                                <span className="score-max">/5</span>
+                                            </div>
+                                            <p className="reputation-count">{reputacion.total_calificaciones} calificación{reputacion.total_calificaciones !== 1 ? 'es' : ''}</p>
+                                        </div>
+                                        <div className="reputation-categories">
+                                            <div className="reputation-category">
+                                                <span className="category-label">Limpieza</span>
+                                                <div className="category-bar-wrapper">
+                                                    <div className="category-bar" style={{ width: `${(reputacion.promedio_limpieza / 5) * 100}%` }}></div>
+                                                </div>
+                                                <span className="category-value">{reputacion.promedio_limpieza}</span>
+                                            </div>
+                                            <div className="reputation-category">
+                                                <span className="category-label">Convivencia</span>
+                                                <div className="category-bar-wrapper">
+                                                    <div className="category-bar" style={{ width: `${(reputacion.promedio_convivencia / 5) * 100}%` }}></div>
+                                                </div>
+                                                <span className="category-value">{reputacion.promedio_convivencia}</span>
+                                            </div>
+                                            <div className="reputation-category">
+                                                <span className="category-label">Respeto a reglas</span>
+                                                <div className="category-bar-wrapper">
+                                                    <div className="category-bar" style={{ width: `${(reputacion.promedio_respeto_reglas / 5) * 100}%` }}></div>
+                                                </div>
+                                                <span className="category-value">{reputacion.promedio_respeto_reglas}</span>
+                                            </div>
+                                        </div>
+                                        {calificaciones.length > 0 && (
+                                            <div className="reviews-list">
+                                                <h3 className="reviews-title">Reseñas recibidas</h3>
+                                                {calificaciones.map((c) => (
+                                                    <div key={c.id} className="review-card">
+                                                        <div className="review-header">
+                                                            <div className="avatar avatar-sm">{c.calificador.avatar}</div>
+                                                            <div className="review-meta">
+                                                                <p className="review-author">{c.calificador.nombre}</p>
+                                                                <p className="review-date">{new Date(c.fecha).toLocaleDateString('es-MX')}</p>
+                                                            </div>
+                                                            <span className="review-score">{c.promedio}/5</span>
+                                                        </div>
+                                                        {c.comentario && <p className="review-comment">{c.comentario}</p>}
+                                                        <div className="review-scores">
+                                                            <span className="badge badge-accent">Limpieza: {c.limpieza}</span>
+                                                            <span className="badge badge-accent">Convivencia: {c.convivencia}</span>
+                                                            <span className="badge badge-accent">Reglas: {c.respeto_reglas}</span>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                ) : (
+                                    <div className="no-results" style={{ padding: 'var(--space-8)' }}>
+                                        <h3>Sin calificaciones todavía</h3>
+                                        <p>Cuando tus roommates te califiquen, aparecerán aquí.</p>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

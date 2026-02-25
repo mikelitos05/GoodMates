@@ -10,13 +10,22 @@ const SALT_ROUNDS = 10;
 // Registrar un nuevo usuario (tenant o landlord)
 router.post('/register', async (req, res) => {
     try {
-        const { nombre, apellido, email, password, role } = req.body;
+        const { nombre_usuario, nombre, apellido, email, password, role } = req.body;
 
         // Validar campos obligatorios
-        if (!nombre || !apellido || !email || !password) {
+        if (!nombre_usuario || !nombre || !apellido || !email || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Todos los campos son obligatorios (nombre, apellido, email, password)',
+                message: 'Todos los campos son obligatorios (nombre_usuario, nombre, apellido, email, password)',
+            });
+        }
+
+        // Validar formato de nombre de usuario (3-30 chars, alfanumerico y guiones bajos)
+        const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+        if (!usernameRegex.test(nombre_usuario)) {
+            return res.status(400).json({
+                success: false,
+                message: 'El nombre de usuario debe tener entre 3 y 30 caracteres y solo puede contener letras, numeros y guiones bajos',
             });
         }
 
@@ -41,13 +50,26 @@ router.post('/register', async (req, res) => {
         const validRoles = ['tenant', 'landlord'];
         const userRole = validRoles.includes(role) ? role : 'tenant';
 
+        // Verificar que el nombre de usuario no este ya registrado
+        const [existingUsername] = await pool.query(
+            'SELECT id_usuario FROM usuarios WHERE nombre_usuario = ?',
+            [nombre_usuario]
+        );
+
+        if (existingUsername.length > 0) {
+            return res.status(409).json({
+                success: false,
+                message: 'El nombre de usuario ya esta en uso',
+            });
+        }
+
         // Verificar que el email no este ya registrado
-        const [existing] = await pool.query(
+        const [existingEmail] = await pool.query(
             'SELECT id_usuario FROM usuarios WHERE email = ?',
             [email]
         );
 
-        if (existing.length > 0) {
+        if (existingEmail.length > 0) {
             return res.status(409).json({
                 success: false,
                 message: 'El correo electronico ya esta registrado',
@@ -62,14 +84,15 @@ router.post('/register', async (req, res) => {
 
         // Insertar el nuevo usuario en la base de datos
         await pool.query(
-            'INSERT INTO usuarios (id_usuario, nombre, apellido, email, contrasena_hash, rol) VALUES (?, ?, ?, ?, ?, ?)',
-            [id_usuario, nombre, apellido, email, password_hash, userRole]
+            'INSERT INTO usuarios (id_usuario, nombre_usuario, nombre, apellido, email, contrasena_hash, rol) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [id_usuario, nombre_usuario, nombre, apellido, email, password_hash, userRole]
         );
 
         // Generar token JWT para iniciar sesion automaticamente despues del registro
         const token = jwt.sign(
             {
                 id: id_usuario,
+                nombre_usuario: nombre_usuario,
                 email: email,
                 role: userRole,
             },
@@ -84,6 +107,7 @@ router.post('/register', async (req, res) => {
             token,
             user: {
                 id: id_usuario,
+                username: nombre_usuario,
                 nombre,
                 apellido,
                 email,
@@ -101,23 +125,26 @@ router.post('/register', async (req, res) => {
     }
 });
 
-// Iniciar sesion con email y contrasena
+// Iniciar sesion con nombre de usuario o email y contrasena
 router.post('/login', async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { nombre_usuario, password } = req.body;
 
         // Validar que se enviaron las credenciales
-        if (!email || !password) {
+        if (!nombre_usuario || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Email y contrasena son obligatorios',
+                message: 'Nombre de usuario o correo y contrasena son obligatorios',
             });
         }
 
-        // Buscar el usuario por email
+        // Detectar si el usuario ingreso un email o un nombre de usuario
+        const isEmail = nombre_usuario.includes('@');
         const [rows] = await pool.query(
-            'SELECT * FROM usuarios WHERE email = ?',
-            [email]
+            isEmail
+                ? 'SELECT * FROM usuarios WHERE email = ?'
+                : 'SELECT * FROM usuarios WHERE nombre_usuario = ?',
+            [nombre_usuario]
         );
 
         if (rows.length === 0) {
@@ -151,6 +178,7 @@ router.post('/login', async (req, res) => {
         const token = jwt.sign(
             {
                 id: user.id_usuario,
+                nombre_usuario: user.nombre_usuario,
                 email: user.email,
                 role: user.rol,
             },
@@ -165,6 +193,7 @@ router.post('/login', async (req, res) => {
             token,
             user: {
                 id: user.id_usuario,
+                username: user.nombre_usuario,
                 nombre: user.nombre,
                 apellido: user.apellido,
                 email: user.email,
@@ -201,7 +230,7 @@ router.get('/verify', async (req, res) => {
 
         // Buscar el usuario en la base de datos
         const [rows] = await pool.query(
-            'SELECT id_usuario, nombre, apellido, email, rol FROM usuarios WHERE id_usuario = ?',
+            'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol FROM usuarios WHERE id_usuario = ?',
             [decoded.id]
         );
 
@@ -219,6 +248,7 @@ router.get('/verify', async (req, res) => {
             success: true,
             user: {
                 id: user.id_usuario,
+                username: user.nombre_usuario,
                 nombre: user.nombre,
                 apellido: user.apellido,
                 email: user.email,

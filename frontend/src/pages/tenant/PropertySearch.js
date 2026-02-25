@@ -28,10 +28,15 @@ function PropertySearch() {
                     </p>
                 </div>
 
-                
+
                 <div className="search-bar animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="search-input-wrapper">
-                        <span className="search-icon">Buscar</span>
+                        <span className="search-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <circle cx="11" cy="11" r="8" />
+                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                            </svg>
+                        </span>
                         <input
                             type="text"
                             className="search-input"
@@ -48,7 +53,7 @@ function PropertySearch() {
                     </button>
                 </div>
 
-                
+
                 {showFilters && (
                     <div className="filters-panel animate-fade-in">
                         <div className="filter-group">
@@ -76,7 +81,7 @@ function PropertySearch() {
                     </div>
                 )}
 
-                
+
                 <div className="search-results-header">
                     <p className="results-count">{filtered.length} propiedad{filtered.length !== 1 ? 'es' : ''} encontrada{filtered.length !== 1 ? 's' : ''}</p>
                 </div>

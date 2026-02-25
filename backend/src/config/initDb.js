@@ -22,6 +22,7 @@ const initDatabase = async () => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS usuarios (
         id_usuario CHAR(36) PRIMARY KEY,
+        nombre_usuario VARCHAR(50) NOT NULL UNIQUE,
         nombre VARCHAR(100) NOT NULL,
         apellido VARCHAR(100) NOT NULL,
         email VARCHAR(100) NOT NULL UNIQUE,
@@ -34,6 +35,7 @@ const initDatabase = async () => {
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         estado_cuenta ENUM('activo', 'suspendido', 'baja') DEFAULT 'activo',
         rol ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant',
+        INDEX idx_nombre_usuario (nombre_usuario),
         INDEX idx_email (email),
         INDEX idx_rol (rol),
         INDEX idx_estado (estado_cuenta)
@@ -204,20 +206,25 @@ const initDatabase = async () => {
     console.log('Tabla respuestas_board verificada');
 
     // Tabla de calificaciones (evaluaciones entre roommates)
+    // DROP necesario: esquema cambiado para incluir puntuaciones por categoria
+    await pool.query('DROP TABLE IF EXISTS calificaciones');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS calificaciones (
         id_calificacion CHAR(36) PRIMARY KEY,
-        id_calificador CHAR(36) NOT NULL,
-        id_calificado CHAR(36) NOT NULL,
-        id_grupo CHAR(36) NOT NULL,
-        puntuacion INT NOT NULL CHECK (puntuacion BETWEEN 1 AND 5),
+        id_usuario_calificador CHAR(36) NOT NULL,
+        id_usuario_calificado CHAR(36) NOT NULL,
+        id_propiedad CHAR(36),
+        limpieza INT NOT NULL CHECK (limpieza BETWEEN 1 AND 5),
+        convivencia INT NOT NULL CHECK (convivencia BETWEEN 1 AND 5),
+        respeto_reglas INT NOT NULL CHECK (respeto_reglas BETWEEN 1 AND 5),
         comentario TEXT,
-        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (id_calificador) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
-        FOREIGN KEY (id_calificado) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
-        FOREIGN KEY (id_grupo) REFERENCES grupos_roommates(id_grupo) ON DELETE CASCADE,
-        UNIQUE KEY uk_calificacion (id_calificador, id_calificado, id_grupo),
-        INDEX idx_calificado (id_calificado)
+        fecha_calificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_usuario_calificador) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_usuario_calificado) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_propiedad) REFERENCES propiedades(id_propiedad) ON DELETE SET NULL,
+        UNIQUE KEY uk_calificacion (id_usuario_calificador, id_usuario_calificado, id_propiedad),
+        INDEX idx_calificado (id_usuario_calificado),
+        INDEX idx_propiedad (id_propiedad)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla calificaciones verificada');

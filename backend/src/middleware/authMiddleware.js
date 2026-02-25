@@ -20,7 +20,7 @@ const verificarToken = async (req, res, next) => {
 
         // Buscar el usuario en la base de datos para confirmar que existe y esta activo
         const [rows] = await pool.query(
-            'SELECT id_usuario, nombre, apellido, email, rol, estado_cuenta FROM usuarios WHERE id_usuario = ?',
+            'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol, estado_cuenta FROM usuarios WHERE id_usuario = ?',
             [decoded.id]
         );
 
@@ -44,6 +44,7 @@ const verificarToken = async (req, res, next) => {
         // Adjuntar los datos del usuario a la peticion para uso posterior
         req.usuario = {
             id: usuario.id_usuario,
+            nombre_usuario: usuario.nombre_usuario,
             nombre: usuario.nombre,
             apellido: usuario.apellido,
             email: usuario.email,

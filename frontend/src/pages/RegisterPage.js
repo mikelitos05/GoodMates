@@ -6,6 +6,7 @@ import './LoginPage.css';
 function RegisterPage() {
     const [step, setStep] = useState(1);
     const [role, setRole] = useState('');
+    const [nombreUsuario, setNombreUsuario] = useState('');
     const [nombre, setNombre] = useState('');
     const [apellido, setApellido] = useState('');
     const [email, setEmail] = useState('');
@@ -38,7 +39,7 @@ function RegisterPage() {
         setLoading(true);
 
         try {
-            const result = await register(nombre, apellido, email, password, role);
+            const result = await register(nombreUsuario, nombre, apellido, email, password, role);
             if (result.success) {
                 navigate(`/${role}/dashboard`);
             } else {
@@ -105,6 +106,18 @@ function RegisterPage() {
                             </div>
                         ) : (
                             <form onSubmit={handleSubmit} className="auth-form">
+                                <div className="form-group">
+                                    <label className="form-label">Nombre de usuario</label>
+                                    <input
+                                        type="text"
+                                        className="form-input"
+                                        placeholder="usuario123"
+                                        value={nombreUsuario}
+                                        onChange={(e) => setNombreUsuario(e.target.value)}
+                                        required
+                                    />
+                                </div>
+
                                 <div className="form-row" style={{ display: 'flex', gap: '1rem' }}>
                                     <div className="form-group" style={{ flex: 1 }}>
                                         <label className="form-label">Nombre</label>

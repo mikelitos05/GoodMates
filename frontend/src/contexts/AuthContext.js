@@ -7,7 +7,7 @@ export function AuthProvider({ children }) {
     const [user, setUser] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    
+
     useEffect(() => {
         const restoreSession = async () => {
             const result = await verifyToken();
@@ -19,8 +19,8 @@ export function AuthProvider({ children }) {
         restoreSession();
     }, []);
 
-    const login = async (email, password) => {
-        const result = await loginUser(email, password);
+    const login = async (nombre_usuario, password) => {
+        const result = await loginUser(nombre_usuario, password);
         if (result.success) {
             setUser(result.user);
             return { success: true, user: result.user };
@@ -28,8 +28,8 @@ export function AuthProvider({ children }) {
         return { success: false, error: result.error };
     };
 
-    const register = async (nombre, apellido, email, password, role) => {
-        const result = await registerUser(nombre, apellido, email, password, role);
+    const register = async (nombre_usuario, nombre, apellido, email, password, role) => {
+        const result = await registerUser(nombre_usuario, nombre, apellido, email, password, role);
         if (result.success) {
             setUser(result.user);
             return { success: true, user: result.user };
@@ -49,7 +49,7 @@ export function AuthProvider({ children }) {
         }));
     };
 
-    
+
     if (loading) {
         return (
             <div style={{

@@ -24,7 +24,11 @@
     left: var(--space-4);
     top: 50%;
     transform: translateY(-50%);
-    font-size: var(--font-lg);
+    color: var(--text-muted, #9ca3af);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
 }
 
 .search-input {

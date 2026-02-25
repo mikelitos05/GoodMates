@@ -33,11 +33,11 @@ const apiRequest = async (url, options = {}) => {
 // -- AUTENTICACION --
 
 // Registrar un nuevo usuario
-export const registerUser = async (nombre, apellido, email, password, role) => {
+export const registerUser = async (nombre_usuario, nombre, apellido, email, password, role) => {
     const result = await apiRequest(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre, apellido, email, password, role }),
+        body: JSON.stringify({ nombre_usuario, nombre, apellido, email, password, role }),
     });
 
     if (result.success && result.token) {
@@ -48,11 +48,11 @@ export const registerUser = async (nombre, apellido, email, password, role) => {
 };
 
 // Iniciar sesion
-export const loginUser = async (email, password) => {
+export const loginUser = async (nombre_usuario, password) => {
     const result = await apiRequest(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ nombre_usuario, password }),
     });
 
     if (result.success && result.token) {

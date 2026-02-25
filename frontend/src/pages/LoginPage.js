@@ -65,11 +65,11 @@ function LoginPage() {
 
                         <form onSubmit={handleSubmit} className="auth-form">
                             <div className="form-group">
-                                <label className="form-label">Nombre de usuario</label>
+                                <label className="form-label">Nombre de usuario o correo</label>
                                 <input
                                     type="text"
                                     className="form-input"
-                                    placeholder="Tu nombre de usuario"
+                                    placeholder="usuario o correo@email.com"
                                     value={username}
                                     onChange={(e) => setUsername(e.target.value)}
                                     required

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import './Navbar.css';
@@ -9,9 +9,26 @@ function Navbar() {
     const location = useLocation();
     const [menuOpen, setMenuOpen] = useState(false);
     const [dropdownOpen, setDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
 
-    
-    const displayName = user ? (user.full_name || user.name || 'Usuario') : '';
+    const displayName = user ? (user.username || 'Usuario') : '';
+    const fullName = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || displayName : '';
+
+    // Cerrar dropdown al hacer clic fuera
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+                setDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    // Cerrar dropdown al cambiar de ruta
+    useEffect(() => {
+        setDropdownOpen(false);
+    }, [location.pathname]);
 
     const handleLogout = () => {
         logout();
@@ -72,13 +89,13 @@ function Navbar() {
 
                 <div className="navbar-actions">
                     {user ? (
-                        <div className="user-menu">
+                        <div className="user-menu" ref={dropdownRef}>
                             <button
                                 className="user-menu-trigger"
                                 onClick={() => setDropdownOpen(!dropdownOpen)}
                             >
                                 <div className="avatar avatar-sm">{user.avatar}</div>
-                                <span className="user-name">{displayName.split(' ')[0]}</span>
+                                <span className="user-name">{displayName}</span>
                                 <span className={`dropdown-arrow ${dropdownOpen ? 'open' : ''}`}>▾</span>
                             </button>
                             {dropdownOpen && (
@@ -86,7 +103,7 @@ function Navbar() {
                                     <div className="dropdown-header">
                                         <div className="avatar">{user.avatar}</div>
                                         <div>
-                                            <p className="dropdown-name">{displayName}</p>
+                                            <p className="dropdown-name">{fullName}</p>
                                             <p className="dropdown-role">{user.role === 'tenant' ? 'Inquilino' : user.role === 'landlord' ? 'Arrendador' : 'Administrador'}</p>
                                         </div>
                                     </div>

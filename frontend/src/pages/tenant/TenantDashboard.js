@@ -1,23 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import { getUserRatings } from '../../services/api';
 import { mockMatches, mockRoommateGroup, mockTasks, getUserById } from '../../data/mockData';
 import './TenantDashboard.css';
 
 function TenantDashboard() {
     const { user } = useAuth();
+    const [reputacion, setReputacion] = useState(null);
     const pendingMatches = mockMatches.filter((m) => m.userId === user.id && m.status === 'pending');
     const pendingTasks = mockTasks.filter((t) => t.assigneeId === user.id && t.status === 'pending');
     const group = mockRoommateGroup.members.includes(user.id) ? mockRoommateGroup : null;
 
+    useEffect(() => {
+        const fetchReputacion = async () => {
+            if (user?.id) {
+                const result = await getUserRatings(user.id);
+                if (result.success) {
+                    setReputacion(result.reputacion);
+                }
+            }
+        };
+        fetchReputacion();
+    }, [user?.id]);
+
     return (
         <div className="dashboard-page">
             <div className="container">
-                
+
                 <div className="dashboard-welcome animate-fade-in-up">
                     <div className="welcome-text">
                         <h1 className="welcome-title">
-                            ¡Hola, <span className="text-gradient">{(user.full_name || user.name || '').split(' ')[0]}</span>!
+                            ¡Hola, <span className="text-gradient">{user.nombre || user.username || ''}</span>!
                         </h1>
                         <p className="welcome-subtitle">
                             Bienvenido a tu panel de GoodMates. Aquí tienes un resumen de tu actividad.
@@ -28,7 +42,7 @@ function TenantDashboard() {
                     </Link>
                 </div>
 
-                
+
                 <div className="dashboard-stats animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="stat-card">
                         <div className="stat-icon">Matches</div>
@@ -47,14 +61,14 @@ function TenantDashboard() {
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Rep.</div>
-                        <div className="stat-value">4.8</div>
-                        <div className="stat-label">Reputación</div>
+                        <div className="stat-value">{reputacion?.promedio_general ?? 'N/A'}</div>
+                        <div className="stat-label">Reputación{reputacion?.total_calificaciones ? ` (${reputacion.total_calificaciones})` : ''}</div>
                     </div>
                 </div>
 
-                
+
                 <div className="dashboard-grid animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-                    
+
                     <div className="dashboard-card">
                         <div className="dashboard-card-header">
                             <h2 className="dashboard-card-title">Matches Recientes</h2>
@@ -88,7 +102,7 @@ function TenantDashboard() {
                         </div>
                     </div>
 
-                    
+
                     <div className="dashboard-card">
                         <div className="dashboard-card-header">
                             <h2 className="dashboard-card-title">Mis Tareas</h2>
@@ -114,7 +128,7 @@ function TenantDashboard() {
                     </div>
                 </div>
 
-                
+
                 <div className="quick-links animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
                     <Link to="/tenant/properties" className="quick-link-card">
                         <span className="quick-link-icon">Propiedades</span>
