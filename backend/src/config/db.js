@@ -19,7 +19,8 @@ const testConnection = async () => {
         const connection = await pool.getConnection();
         connection.release();
     } catch (error) {
-        process.exit(1);
+        console.error('Error de conexión a la base de datos:', error.message);
+        throw error;
     }
 };
 
