@@ -1,51 +1,58 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockBoardPosts, getUserById } from '../../data/mockData';
+import { getMyGroup, getBoardPosts, createBoardPost, replyToBoardPost } from '../../services/api';
 import './MatesBoard.css';
 
 function MatesBoard() {
     const { user } = useAuth();
-    const [posts, setPosts] = useState(mockBoardPosts);
+    const [group, setGroup] = useState(null);
+    const [posts, setPosts] = useState([]);
     const [showForm, setShowForm] = useState(false);
+    const [loading, setLoading] = useState(true);
     const [newPost, setNewPost] = useState({ title: '', content: '', type: 'announcement' });
     const [replyText, setReplyText] = useState({});
 
-    const handleCreatePost = (e) => {
-        e.preventDefault();
-        const post = {
-            id: Date.now(),
-            groupId: 1,
-            authorId: user.id,
-            ...newPost,
-            createdAt: new Date().toISOString(),
-            replies: [],
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            const groupRes = await getMyGroup();
+            if (groupRes.success && groupRes.grupo) {
+                setGroup(groupRes.grupo);
+                const postsRes = await getBoardPosts(groupRes.grupo.id_grupo);
+                if (postsRes.success) {
+                    setPosts(postsRes.publicaciones || []);
+                }
+            }
+            setLoading(false);
         };
-        setPosts([post, ...posts]);
-        setNewPost({ title: '', content: '', type: 'announcement' });
-        setShowForm(false);
+        fetchData();
+    }, []);
+
+    const handleCreatePost = async (e) => {
+        e.preventDefault();
+        if (!group) return;
+        const result = await createBoardPost({
+            id_grupo: group.id_grupo,
+            titulo: newPost.title,
+            contenido: newPost.content,
+            tipo: newPost.type,
+        });
+        if (result.success) {
+            const postsRes = await getBoardPosts(group.id_grupo);
+            if (postsRes.success) setPosts(postsRes.publicaciones || []);
+            setNewPost({ title: '', content: '', type: 'announcement' });
+            setShowForm(false);
+        }
     };
 
-    const handleReply = (postId) => {
+    const handleReply = async (postId) => {
         if (!replyText[postId]?.trim()) return;
-        setPosts((prev) =>
-            prev.map((p) =>
-                p.id === postId
-                    ? {
-                        ...p,
-                        replies: [
-                            ...p.replies,
-                            {
-                                id: Date.now(),
-                                authorId: user.id,
-                                content: replyText[postId],
-                                createdAt: new Date().toISOString(),
-                            },
-                        ],
-                    }
-                    : p
-            )
-        );
-        setReplyText((prev) => ({ ...prev, [postId]: '' }));
+        const result = await replyToBoardPost(postId, replyText[postId]);
+        if (result.success && group) {
+            const postsRes = await getBoardPosts(group.id_grupo);
+            if (postsRes.success) setPosts(postsRes.publicaciones || []);
+            setReplyText((prev) => ({ ...prev, [postId]: '' }));
+        }
     };
 
     const typeIcons = {
@@ -61,6 +68,7 @@ function MatesBoard() {
     };
 
     const formatDate = (dateStr) => {
+        if (!dateStr) return '';
         const date = new Date(dateStr);
         return date.toLocaleDateString('es-MX', {
             day: 'numeric',
@@ -70,6 +78,30 @@ function MatesBoard() {
             minute: '2-digit',
         });
     };
+
+    if (loading) {
+        return (
+            <div className="board-page">
+                <div className="container">
+                    <p className="empty-state">Cargando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!group) {
+        return (
+            <div className="board-page">
+                <div className="container">
+                    <div className="no-results">
+                        <span className="no-results-icon">Sin grupo</span>
+                        <h3>Necesitas pertenecer a un grupo</h3>
+                        <p>Únete a un grupo de roommates para acceder al Mates Board.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="board-page">
@@ -84,7 +116,7 @@ function MatesBoard() {
                     </button>
                 </div>
 
-                
+
                 {showForm && (
                     <div className="board-form-card animate-fade-in">
                         <form onSubmit={handleCreatePost} className="board-form">
@@ -129,40 +161,52 @@ function MatesBoard() {
                     </div>
                 )}
 
-                
+
                 <div className="post-feed">
                     {posts.map((post) => {
-                        const author = getUserById(post.authorId);
+                        const postId = post.id_publicacion || post.id;
+                        const authorName = post.autor_nombre || '';
+                        const authorApellido = post.autor_apellido || '';
+                        const authorInitials = (authorName[0] || '') + (authorApellido[0] || '');
+                        const titulo = post.titulo || post.title || '';
+                        const contenido = post.contenido || post.content || '';
+                        const tipo = post.tipo || post.type || 'announcement';
+                        const fecha = post.fecha_creacion || post.createdAt || '';
+                        const replies = post.respuestas || post.replies || [];
+
                         return (
-                            <div key={post.id} className="post-card animate-fade-in-up">
+                            <div key={postId} className="post-card animate-fade-in-up">
                                 <div className="post-header">
                                     <div className="post-author">
-                                        <div className="avatar">{author?.avatar}</div>
+                                        <div className="avatar">{authorInitials.toUpperCase()}</div>
                                         <div>
-                                            <p className="post-author-name">{author?.name}</p>
-                                            <p className="post-date">{formatDate(post.createdAt)}</p>
+                                            <p className="post-author-name">{authorName} {authorApellido}</p>
+                                            <p className="post-date">{formatDate(fecha)}</p>
                                         </div>
                                     </div>
-                                    <span className={`post-type-badge ${post.type}`}>
-                                        {typeIcons[post.type]} {typeLabels[post.type]}
+                                    <span className={`post-type-badge ${tipo}`}>
+                                        {typeIcons[tipo] || tipo} {typeLabels[tipo] || tipo}
                                     </span>
                                 </div>
 
-                                <h3 className="post-title">{post.title}</h3>
-                                <p className="post-content">{post.content}</p>
+                                <h3 className="post-title">{titulo}</h3>
+                                <p className="post-content">{contenido}</p>
 
-                                
-                                {post.replies.length > 0 && (
+
+                                {replies.length > 0 && (
                                     <div className="post-replies">
-                                        {post.replies.map((reply) => {
-                                            const replyAuthor = getUserById(reply.authorId);
+                                        {replies.map((reply) => {
+                                            const replyId = reply.id_respuesta || reply.id;
+                                            const replyName = reply.autor_nombre || '';
+                                            const replyApellido = reply.autor_apellido || '';
+                                            const replyInitials = (replyName[0] || '') + (replyApellido[0] || '');
                                             return (
-                                                <div key={reply.id} className="reply-item">
-                                                    <div className="avatar avatar-sm">{replyAuthor?.avatar}</div>
+                                                <div key={replyId} className="reply-item">
+                                                    <div className="avatar avatar-sm">{replyInitials.toUpperCase()}</div>
                                                     <div className="reply-content">
-                                                        <span className="reply-author">{replyAuthor?.name}</span>
-                                                        <p className="reply-text">{reply.content}</p>
-                                                        <span className="reply-date">{formatDate(reply.createdAt)}</span>
+                                                        <span className="reply-author">{replyName} {replyApellido}</span>
+                                                        <p className="reply-text">{reply.contenido || reply.content}</p>
+                                                        <span className="reply-date">{formatDate(reply.fecha_creacion || reply.createdAt)}</span>
                                                     </div>
                                                 </div>
                                             );
@@ -170,18 +214,20 @@ function MatesBoard() {
                                     </div>
                                 )}
 
-                                
+
                                 <div className="reply-input-wrapper">
-                                    <div className="avatar avatar-sm">{user?.avatar}</div>
+                                    <div className="avatar avatar-sm">
+                                        {((user?.nombre?.[0] || '') + (user?.apellido?.[0] || '')).toUpperCase() || '??'}
+                                    </div>
                                     <input
                                         type="text"
                                         className="reply-input"
                                         placeholder="Escribe una respuesta..."
-                                        value={replyText[post.id] || ''}
-                                        onChange={(e) => setReplyText({ ...replyText, [post.id]: e.target.value })}
-                                        onKeyDown={(e) => { if (e.key === 'Enter') handleReply(post.id); }}
+                                        value={replyText[postId] || ''}
+                                        onChange={(e) => setReplyText({ ...replyText, [postId]: e.target.value })}
+                                        onKeyDown={(e) => { if (e.key === 'Enter') handleReply(postId); }}
                                     />
-                                    <button className="btn btn-primary btn-sm" onClick={() => handleReply(post.id)}>
+                                    <button className="btn btn-primary btn-sm" onClick={() => handleReply(postId)}>
                                         Enviar
                                     </button>
                                 </div>
@@ -189,6 +235,14 @@ function MatesBoard() {
                         );
                     })}
                 </div>
+
+                {posts.length === 0 && (
+                    <div className="no-results">
+                        <span className="no-results-icon">Sin publicaciones</span>
+                        <h3>Aún no hay publicaciones</h3>
+                        <p>Sé el primero en compartir algo con tus roommates.</p>
+                    </div>
+                )}
             </div>
         </div>
     );

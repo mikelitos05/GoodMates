@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockProperties } from '../../data/mockData';
+import { getMyProperties, createProperty, updateProperty, deleteProperty } from '../../services/api';
 import './PropertyManager.css';
 
 function PropertyManager() {
     const { user } = useAuth();
-    const [properties, setProperties] = useState(
-        mockProperties.filter((p) => p.landlordId === user?.id)
-    );
+    const [properties, setProperties] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [editingId, setEditingId] = useState(null);
     const [form, setForm] = useState({
@@ -16,51 +15,82 @@ function PropertyManager() {
         amenities: '', rules: '',
     });
 
+    useEffect(() => {
+        fetchProperties();
+    }, []);
+
+    const fetchProperties = async () => {
+        setLoading(true);
+        const result = await getMyProperties();
+        if (result.success) {
+            setProperties(result.propiedades || []);
+        }
+        setLoading(false);
+    };
+
     const handleChange = (field, value) => {
         setForm((prev) => ({ ...prev, [field]: value }));
     };
 
     const handleEdit = (prop) => {
+        const title = prop.titulo || prop.title || '';
+        const description = prop.descripcion || prop.description || '';
+        const address = prop.direccion || prop.address || '';
+        const city = prop.ciudad || prop.city || '';
+        const state = prop.estado_ubicacion || prop.state || '';
+        const price = prop.precio || prop.price || '';
+        const rooms = prop.habitaciones || prop.rooms || '';
+        const bathrooms = prop.banos || prop.bathrooms || '';
+        const availableRooms = prop.habitaciones_disponibles || prop.availableRooms || '';
+        const area = prop.area || '';
+        const amenities = prop.amenidades || prop.amenities || [];
+        const rules = prop.reglas || prop.rules || [];
+
         setForm({
-            title: prop.title, description: prop.description, address: prop.address,
-            city: prop.city, state: prop.state, price: prop.price, rooms: prop.rooms,
-            bathrooms: prop.bathrooms, availableRooms: prop.availableRooms, area: prop.area,
-            amenities: prop.amenities.join(', '), rules: prop.rules.join(', '),
+            title, description, address, city, state, price, rooms,
+            bathrooms, availableRooms, area,
+            amenities: Array.isArray(amenities) ? amenities.join(', ') : amenities,
+            rules: Array.isArray(rules) ? rules.join(', ') : rules,
         });
-        setEditingId(prop.id);
+        setEditingId(prop.id_propiedad || prop.id);
         setShowForm(true);
     };
 
-    const handleDelete = (id) => {
-        setProperties((prev) => prev.filter((p) => p.id !== id));
+    const handleDelete = async (id) => {
+        const result = await deleteProperty(id);
+        if (result.success) {
+            setProperties((prev) => prev.filter((p) => (p.id_propiedad || p.id) !== id));
+        }
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const newProp = {
-            id: editingId || Date.now(),
-            landlordId: user.id,
-            ...form,
-            price: parseInt(form.price),
-            rooms: parseInt(form.rooms),
-            bathrooms: parseInt(form.bathrooms),
-            availableRooms: parseInt(form.availableRooms),
-            area: parseInt(form.area),
-            amenities: form.amenities.split(',').map((a) => a.trim()).filter(Boolean),
-            rules: form.rules.split(',').map((r) => r.trim()).filter(Boolean),
-            images: [],
-            nearbyPlaces: [],
-            available: true,
-            featured: false,
+        const propertyData = {
+            titulo: form.title,
+            descripcion: form.description,
+            direccion: form.address,
+            ciudad: form.city,
+            estado_ubicacion: form.state,
+            precio: parseInt(form.price),
+            habitaciones: parseInt(form.rooms),
+            banos: parseInt(form.bathrooms),
+            habitaciones_disponibles: parseInt(form.availableRooms),
+            area: parseInt(form.area) || null,
+            amenidades: form.amenities.split(',').map((a) => a.trim()).filter(Boolean),
+            reglas: form.rules.split(',').map((r) => r.trim()).filter(Boolean),
         };
 
+        let result;
         if (editingId) {
-            setProperties((prev) => prev.map((p) => (p.id === editingId ? newProp : p)));
+            result = await updateProperty(editingId, propertyData);
         } else {
-            setProperties((prev) => [...prev, newProp]);
+            result = await createProperty(propertyData);
         }
 
-        resetForm();
+        if (result.success) {
+            await fetchProperties();
+            resetForm();
+        }
     };
 
     const resetForm = () => {
@@ -86,7 +116,7 @@ function PropertyManager() {
                     </button>
                 </div>
 
-                
+
                 {showForm && (
                     <div className="property-form-card animate-fade-in-up">
                         <h2 className="form-card-title">
@@ -149,40 +179,54 @@ function PropertyManager() {
                     </div>
                 )}
 
-                
+
                 <div className="properties-list">
-                    {properties.map((prop) => (
-                        <div key={prop.id} className="manager-property-card animate-fade-in-up">
-                            <div className="manager-property-image">Sin imagen</div>
-                            <div className="manager-property-content">
-                                <div className="manager-property-header">
-                                    <h3 className="manager-property-title">{prop.title}</h3>
-                                    <span className={`badge ${prop.available ? 'badge-success' : 'badge-error'}`}>
-                                        {prop.available ? 'Activa' : 'Inactiva'}
-                                    </span>
+                    {properties.map((prop) => {
+                        const id = prop.id_propiedad || prop.id;
+                        const title = prop.titulo || prop.title || '';
+                        const address = prop.direccion || prop.address || '';
+                        const city = prop.ciudad || prop.city || '';
+                        const price = prop.precio || prop.price || 0;
+                        const rooms = prop.habitaciones || prop.rooms || 0;
+                        const bathrooms = prop.banos || prop.bathrooms || 0;
+                        const availableRooms = prop.habitaciones_disponibles || prop.availableRooms || 0;
+                        const area = prop.area || 0;
+                        const amenities = prop.amenidades || prop.amenities || [];
+                        const available = prop.disponible !== undefined ? prop.disponible : (prop.available !== undefined ? prop.available : true);
+
+                        return (
+                            <div key={id} className="manager-property-card animate-fade-in-up">
+                                <div className="manager-property-image">Sin imagen</div>
+                                <div className="manager-property-content">
+                                    <div className="manager-property-header">
+                                        <h3 className="manager-property-title">{title}</h3>
+                                        <span className={`badge ${available ? 'badge-success' : 'badge-error'}`}>
+                                            {available ? 'Activa' : 'Inactiva'}
+                                        </span>
+                                    </div>
+                                    <p className="manager-property-location">{address}{address && city ? ', ' : ''}{city}</p>
+                                    <div className="manager-property-meta">
+                                        <span>${price.toLocaleString()}/mes</span>
+                                        <span>{rooms} hab. ({availableRooms} disp.)</span>
+                                        <span>{bathrooms} baños</span>
+                                        {area > 0 && <span>{area}m²</span>}
+                                    </div>
+                                    <div className="manager-property-amenities">
+                                        {(Array.isArray(amenities) ? amenities : []).slice(0, 4).map((a, i) => (
+                                            <span key={i} className="badge badge-accent">{a}</span>
+                                        ))}
+                                    </div>
                                 </div>
-                                <p className="manager-property-location">{prop.address}, {prop.city}</p>
-                                <div className="manager-property-meta">
-                                    <span>${prop.price.toLocaleString()}/mes</span>
-                                    <span>{prop.rooms} hab. ({prop.availableRooms} disp.)</span>
-                                    <span>{prop.bathrooms} baños</span>
-                                    <span>{prop.area}m²</span>
-                                </div>
-                                <div className="manager-property-amenities">
-                                    {prop.amenities.slice(0, 4).map((a, i) => (
-                                        <span key={i} className="badge badge-accent">{a}</span>
-                                    ))}
+                                <div className="manager-property-actions">
+                                    <button className="btn btn-outline btn-sm" onClick={() => handleEdit(prop)}>Editar</button>
+                                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(id)}>Eliminar</button>
                                 </div>
                             </div>
-                            <div className="manager-property-actions">
-                                <button className="btn btn-outline btn-sm" onClick={() => handleEdit(prop)}>Editar</button>
-                                <button className="btn btn-danger btn-sm" onClick={() => handleDelete(prop.id)}>Eliminar</button>
-                            </div>
-                        </div>
-                    ))}
+                        );
+                    })}
                 </div>
 
-                {properties.length === 0 && !showForm && (
+                {!loading && properties.length === 0 && !showForm && (
                     <div className="no-results">
                         <span className="no-results-icon">Sin propiedades</span>
                         <h3>No tienes propiedades publicadas</h3>

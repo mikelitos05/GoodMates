@@ -1,12 +1,42 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockRoommateGroup, getUserById, getPropertyById } from '../../data/mockData';
+import { getMyGroup, getPropertyById } from '../../services/api';
 import './RoommateGroup.css';
 
 function RoommateGroup() {
     const { user } = useAuth();
-    const group = mockRoommateGroup.members.includes(user?.id) ? mockRoommateGroup : null;
+    const [group, setGroup] = useState(null);
+    const [property, setProperty] = useState(null);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            const groupRes = await getMyGroup();
+            if (groupRes.success && groupRes.grupo) {
+                setGroup(groupRes.grupo);
+                if (groupRes.grupo.id_propiedad) {
+                    const propRes = await getPropertyById(groupRes.grupo.id_propiedad);
+                    if (propRes.success) {
+                        setProperty(propRes.propiedad || propRes);
+                    }
+                }
+            }
+            setLoading(false);
+        };
+        fetchData();
+    }, []);
+
+    if (loading) {
+        return (
+            <div className="group-page">
+                <div className="container">
+                    <p className="empty-state">Cargando...</p>
+                </div>
+            </div>
+        );
+    }
 
     if (!group) {
         return (
@@ -23,47 +53,51 @@ function RoommateGroup() {
         );
     }
 
-    const property = getPropertyById(group.propertyId);
-    const members = group.members.map((id) => getUserById(id)).filter(Boolean);
+    const members = group.miembros || [];
+    const propTitle = property?.titulo || property?.title || '';
+    const propAddress = property?.direccion || property?.address || '';
+    const propCity = property?.ciudad || property?.city || '';
+    const propPrice = property?.precio || property?.price || 0;
 
     return (
         <div className="group-page">
             <div className="container">
                 <div className="group-header animate-fade-in-up">
                     <div>
-                        <h1 className="section-title">{group.name}</h1>
+                        <h1 className="section-title">{group.nombre || 'Mi Grupo'}</h1>
                         <p className="section-subtitle">
-                            {property ? `${property.title}` : 'Grupo de roommates'}
-                            {' · '} Creado el {group.createdAt}
+                            {propTitle ? propTitle : 'Grupo de roommates'}
+                            {group.fecha_creacion ? ` · Creado el ${group.fecha_creacion.split('T')[0]}` : ''}
                         </p>
                     </div>
                 </div>
 
-                
+
                 <div className="group-grid animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="group-card">
                         <h2 className="group-card-title">Miembros ({members.length})</h2>
                         <div className="members-list">
-                            {members.map((member) => (
-                                <div key={member.id} className="member-card">
-                                    <div className="avatar avatar-lg">{member.avatar}</div>
-                                    <div className="member-info">
-                                        <h3 className="member-name">
-                                            {member.name} {member.id === user.id && <span className="you-badge">(Tú)</span>}
-                                        </h3>
-                                        <p className="member-detail">{member.profile?.university} · {member.profile?.career}</p>
-                                        <div className="member-tags">
-                                            {member.profile?.hobbies?.slice(0, 3).map((h, i) => (
-                                                <span key={i} className="badge badge-primary">{h}</span>
-                                            ))}
+                            {members.map((member) => {
+                                const nombre = member.nombre || '';
+                                const apellido = member.apellido || '';
+                                const initials = (nombre[0] || '') + (apellido[0] || '');
+                                const memberId = member.id_usuario;
+                                return (
+                                    <div key={memberId} className="member-card">
+                                        <div className="avatar avatar-lg">{initials.toUpperCase()}</div>
+                                        <div className="member-info">
+                                            <h3 className="member-name">
+                                                {nombre} {apellido} {memberId === user?.id && <span className="you-badge">(Tú)</span>}
+                                            </h3>
+                                            <p className="member-detail">{member.email || ''}</p>
                                         </div>
                                     </div>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </div>
 
-                    
+
                     <div className="group-actions-card">
                         <h2 className="group-card-title">Herramientas</h2>
                         <div className="group-tools">
@@ -91,9 +125,9 @@ function RoommateGroup() {
                                 <div className="property-mini-card">
                                     <div className="mini-card-image">Sin imagen</div>
                                     <div>
-                                        <p className="mini-card-title">{property.title}</p>
-                                        <p className="mini-card-location">{property.address}, {property.city}</p>
-                                        <p className="mini-card-price">${property.price.toLocaleString()}/mes</p>
+                                        <p className="mini-card-title">{propTitle}</p>
+                                        <p className="mini-card-location">{propAddress}{propAddress && propCity ? ', ' : ''}{propCity}</p>
+                                        {propPrice > 0 && <p className="mini-card-price">${propPrice.toLocaleString()}/mes</p>}
                                     </div>
                                 </div>
                             </div>

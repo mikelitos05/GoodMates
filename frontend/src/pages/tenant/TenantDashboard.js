@@ -1,28 +1,37 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRatings } from '../../services/api';
-import { mockMatches, mockRoommateGroup, mockTasks, getUserById } from '../../data/mockData';
+import { getUserRatings, getMatches, getMyGroup } from '../../services/api';
 import './TenantDashboard.css';
 
 function TenantDashboard() {
     const { user } = useAuth();
     const [reputacion, setReputacion] = useState(null);
-    const pendingMatches = mockMatches.filter((m) => m.userId === user.id && m.status === 'pending');
-    const pendingTasks = mockTasks.filter((t) => t.assigneeId === user.id && t.status === 'pending');
-    const group = mockRoommateGroup.members.includes(user.id) ? mockRoommateGroup : null;
+    const [matches, setMatches] = useState([]);
+    const [group, setGroup] = useState(null);
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        const fetchReputacion = async () => {
-            if (user?.id) {
-                const result = await getUserRatings(user.id);
-                if (result.success) {
-                    setReputacion(result.reputacion);
-                }
-            }
+        const fetchData = async () => {
+            if (!user?.id) return;
+            setLoading(true);
+
+            const [ratingsRes, matchesRes, groupRes] = await Promise.all([
+                getUserRatings(user.id),
+                getMatches(),
+                getMyGroup(),
+            ]);
+
+            if (ratingsRes.success) setReputacion(ratingsRes.reputacion);
+            if (matchesRes.success) setMatches(matchesRes.matches || []);
+            if (groupRes.success) setGroup(groupRes.grupo || null);
+
+            setLoading(false);
         };
-        fetchReputacion();
+        fetchData();
     }, [user?.id]);
+
+    const pendingMatches = matches.filter((m) => m.estado === 'pendiente');
 
     return (
         <div className="dashboard-page">
@@ -51,12 +60,12 @@ function TenantDashboard() {
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Tareas</div>
-                        <div className="stat-value">{pendingTasks.length}</div>
+                        <div className="stat-value">0</div>
                         <div className="stat-label">Tareas Pendientes</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Grupo</div>
-                        <div className="stat-value">{group ? group.members.length : 0}</div>
+                        <div className="stat-value">{group?.miembros?.length || 0}</div>
                         <div className="stat-label">Roommates</div>
                     </div>
                     <div className="stat-card">
@@ -77,19 +86,20 @@ function TenantDashboard() {
                         <div className="dashboard-card-body">
                             {pendingMatches.length > 0 ? (
                                 <div className="match-preview-list">
-                                    {pendingMatches.map((match) => {
-                                        const matchUser = getUserById(match.matchedUserId);
+                                    {pendingMatches.slice(0, 3).map((match) => {
+                                        const nombre = match.usuario_nombre || 'Usuario';
+                                        const avatar = nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
                                         return (
-                                            <div key={match.id} className="match-preview-item">
-                                                <div className="avatar">{matchUser?.avatar}</div>
+                                            <div key={match.id_match} className="match-preview-item">
+                                                <div className="avatar">{avatar}</div>
                                                 <div className="match-preview-info">
-                                                    <p className="match-preview-name">{matchUser?.name}</p>
-                                                    <p className="match-preview-detail">{matchUser?.profile?.university}</p>
+                                                    <p className="match-preview-name">{nombre}</p>
+                                                    <p className="match-preview-detail">Compatibilidad</p>
                                                 </div>
                                                 <div className="match-compatibility">
-                                                    <span className="compatibility-score">{match.compatibility}%</span>
+                                                    <span className="compatibility-score">{match.porcentaje_compatibilidad}%</span>
                                                     <div className="progress-bar" style={{ width: '60px' }}>
-                                                        <div className="progress-fill" style={{ width: `${match.compatibility}%` }}></div>
+                                                        <div className="progress-fill" style={{ width: `${match.porcentaje_compatibilidad}%` }}></div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -109,21 +119,7 @@ function TenantDashboard() {
                             <Link to="/roommate/tasks" className="btn btn-ghost btn-sm">Ver todas →</Link>
                         </div>
                         <div className="dashboard-card-body">
-                            {pendingTasks.length > 0 ? (
-                                <div className="task-preview-list">
-                                    {pendingTasks.map((task) => (
-                                        <div key={task.id} className="task-preview-item">
-                                            <div className="task-preview-check">○</div>
-                                            <div className="task-preview-info">
-                                                <p className="task-preview-title">{task.title}</p>
-                                                <p className="task-preview-due">Vence: {task.dueDate}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <p className="empty-state">No tienes tareas pendientes</p>
-                            )}
+                            <p className="empty-state">No tienes tareas pendientes</p>
                         </div>
                     </div>
                 </div>

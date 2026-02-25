@@ -1,14 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockTasks, mockRoommateGroup, getUserById } from '../../data/mockData';
+import { getMyGroup, getGroupTasks, createTask, completeTask, deleteTask as deleteTaskApi } from '../../services/api';
 import './TaskManager.css';
 
 function TaskManager() {
     const { user } = useAuth();
-    const group = mockRoommateGroup;
-    const [tasks, setTasks] = useState(mockTasks);
+    const [group, setGroup] = useState(null);
+    const [tasks, setTasks] = useState([]);
     const [showForm, setShowForm] = useState(false);
     const [filter, setFilter] = useState('all');
+    const [loading, setLoading] = useState(true);
     const [form, setForm] = useState({
         title: '',
         description: '',
@@ -16,46 +17,101 @@ function TaskManager() {
         dueDate: '',
     });
 
-    const members = group.members.map((id) => getUserById(id)).filter(Boolean);
+    useEffect(() => {
+        const fetchData = async () => {
+            setLoading(true);
+            const groupRes = await getMyGroup();
+            if (groupRes.success && groupRes.grupo) {
+                setGroup(groupRes.grupo);
+                const tasksRes = await getGroupTasks(groupRes.grupo.id_grupo);
+                if (tasksRes.success) {
+                    setTasks(tasksRes.tareas || []);
+                }
+            }
+            setLoading(false);
+        };
+        fetchData();
+    }, []);
+
+    const members = group?.miembros || [];
 
     const filteredTasks = tasks.filter((t) => {
-        if (filter === 'pending') return t.status === 'pending';
-        if (filter === 'completed') return t.status === 'completed';
-        if (filter === 'mine') return t.assigneeId === user?.id;
+        const status = t.estado || t.status;
+        const assignee = t.id_asignado || t.assigneeId;
+        if (filter === 'pending') return status === 'pendiente' || status === 'pending';
+        if (filter === 'completed') return status === 'completada' || status === 'completed';
+        if (filter === 'mine') return assignee === user?.id;
         return true;
     });
 
-    const toggleTask = (taskId) => {
-        setTasks((prev) =>
-            prev.map((t) =>
-                t.id === taskId
-                    ? { ...t, status: t.status === 'completed' ? 'pending' : 'completed' }
-                    : t
-            )
-        );
+    const toggleTask = async (taskId) => {
+        const result = await completeTask(taskId);
+        if (result.success) {
+            setTasks((prev) =>
+                prev.map((t) => {
+                    const id = t.id_tarea || t.id;
+                    if (id === taskId) {
+                        const currentStatus = t.estado || t.status;
+                        const newStatus = (currentStatus === 'completada' || currentStatus === 'completed') ? 'pendiente' : 'completada';
+                        return { ...t, estado: newStatus, status: newStatus };
+                    }
+                    return t;
+                })
+            );
+        }
     };
 
-    const handleSubmit = (e) => {
+    const handleSubmit = async (e) => {
         e.preventDefault();
-        const newTask = {
-            id: Date.now(),
-            groupId: group.id,
-            ...form,
-            assigneeId: parseInt(form.assigneeId),
-            status: 'pending',
-            createdAt: new Date().toISOString().split('T')[0],
-        };
-        setTasks((prev) => [newTask, ...prev]);
-        setForm({ title: '', description: '', assigneeId: '', dueDate: '' });
-        setShowForm(false);
+        if (!group) return;
+        const result = await createTask({
+            id_grupo: group.id_grupo,
+            titulo: form.title,
+            descripcion: form.description,
+            id_asignado: form.assigneeId,
+            fecha_limite: form.dueDate,
+        });
+        if (result.success) {
+            const tasksRes = await getGroupTasks(group.id_grupo);
+            if (tasksRes.success) setTasks(tasksRes.tareas || []);
+            setForm({ title: '', description: '', assigneeId: '', dueDate: '' });
+            setShowForm(false);
+        }
     };
 
-    const deleteTask = (taskId) => {
-        setTasks((prev) => prev.filter((t) => t.id !== taskId));
+    const handleDeleteTask = async (taskId) => {
+        const result = await deleteTaskApi(taskId);
+        if (result.success) {
+            setTasks((prev) => prev.filter((t) => (t.id_tarea || t.id) !== taskId));
+        }
     };
 
-    const completedCount = tasks.filter((t) => t.status === 'completed').length;
+    const completedCount = tasks.filter((t) => (t.estado || t.status) === 'completada' || (t.estado || t.status) === 'completed').length;
     const totalCount = tasks.length;
+
+    if (loading) {
+        return (
+            <div className="task-page">
+                <div className="container">
+                    <p className="empty-state">Cargando...</p>
+                </div>
+            </div>
+        );
+    }
+
+    if (!group) {
+        return (
+            <div className="task-page">
+                <div className="container">
+                    <div className="no-results">
+                        <span className="no-results-icon">Sin grupo</span>
+                        <h3>Necesitas pertenecer a un grupo</h3>
+                        <p>Únete a un grupo de roommates para acceder al Task Manager.</p>
+                    </div>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="task-page">
@@ -70,7 +126,7 @@ function TaskManager() {
                     </button>
                 </div>
 
-                
+
                 <div className="task-progress animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="progress-info">
                         <span className="progress-label">Progreso del grupo</span>
@@ -81,7 +137,7 @@ function TaskManager() {
                     </div>
                 </div>
 
-                
+
                 {showForm && (
                     <div className="task-form-card animate-fade-in">
                         <h2 className="form-card-title">Nueva Tarea</h2>
@@ -112,7 +168,9 @@ function TaskManager() {
                                     <select className="form-select" value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })} required>
                                         <option value="">Seleccionar...</option>
                                         {members.map((m) => (
-                                            <option key={m.id} value={m.id}>{m.name}</option>
+                                            <option key={m.id_usuario} value={m.id_usuario}>
+                                                {m.nombre} {m.apellido}
+                                            </option>
                                         ))}
                                     </select>
                                 </div>
@@ -132,7 +190,7 @@ function TaskManager() {
                     </div>
                 )}
 
-                
+
                 <div className="task-filters animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
                     {['all', 'pending', 'completed', 'mine'].map((f) => (
                         <button
@@ -145,37 +203,46 @@ function TaskManager() {
                     ))}
                 </div>
 
-                
+
                 <div className="task-list">
                     {filteredTasks.map((task) => {
-                        const assignee = getUserById(task.assigneeId);
+                        const taskId = task.id_tarea || task.id;
+                        const title = task.titulo || task.title;
+                        const description = task.descripcion || task.description || '';
+                        const status = task.estado || task.status || 'pendiente';
+                        const dueDate = task.fecha_limite || task.dueDate || '';
+                        const assigneeName = task.asignado_nombre || '';
+                        const assigneeApellido = task.asignado_apellido || '';
+                        const isCompleted = status === 'completada' || status === 'completed';
+                        const initials = assigneeName ? (assigneeName[0] + (assigneeApellido?.[0] || '')).toUpperCase() : '??';
+
                         return (
-                            <div key={task.id} className={`task-card ${task.status} animate-fade-in-up`}>
+                            <div key={taskId} className={`task-card ${isCompleted ? 'completed' : 'pending'} animate-fade-in-up`}>
                                 <button
-                                    className={`task-checkbox ${task.status === 'completed' ? 'checked' : ''}`}
-                                    onClick={() => toggleTask(task.id)}
+                                    className={`task-checkbox ${isCompleted ? 'checked' : ''}`}
+                                    onClick={() => toggleTask(taskId)}
                                 >
-                                    {task.status === 'completed' ? '✓' : ''}
+                                    {isCompleted ? '✓' : ''}
                                 </button>
                                 <div className="task-content">
-                                    <h3 className={`task-title ${task.status === 'completed' ? 'completed' : ''}`}>
-                                        {task.title}
+                                    <h3 className={`task-title ${isCompleted ? 'completed' : ''}`}>
+                                        {title}
                                     </h3>
-                                    <p className="task-description">{task.description}</p>
+                                    {description && <p className="task-description">{description}</p>}
                                     <div className="task-meta">
-                                        {assignee && (
+                                        {assigneeName && (
                                             <span className="task-assignee">
-                                                <span className="avatar avatar-sm">{assignee.avatar}</span>
-                                                {assignee.name.split(' ')[0]}
+                                                <span className="avatar avatar-sm">{initials}</span>
+                                                {assigneeName}
                                             </span>
                                         )}
-                                        <span className="task-due">Vence: {task.dueDate}</span>
-                                        <span className={`badge ${task.status === 'completed' ? 'badge-success' : 'badge-warning'}`}>
-                                            {task.status === 'completed' ? 'Completada' : 'Pendiente'}
+                                        {dueDate && <span className="task-due">Vence: {dueDate.split('T')[0]}</span>}
+                                        <span className={`badge ${isCompleted ? 'badge-success' : 'badge-warning'}`}>
+                                            {isCompleted ? 'Completada' : 'Pendiente'}
                                         </span>
                                     </div>
                                 </div>
-                                <button className="task-delete" onClick={() => deleteTask(task.id)} title="Eliminar">
+                                <button className="task-delete" onClick={() => handleDeleteTask(taskId)} title="Eliminar">
                                     Eliminar
                                 </button>
                             </div>

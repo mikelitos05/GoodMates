@@ -1,13 +1,27 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { mockProperties } from '../../data/mockData';
+import { getMyProperties } from '../../services/api';
 import './LandlordDashboard.css';
 
 function LandlordDashboard() {
     const { user } = useAuth();
-    const myProperties = mockProperties.filter((p) => p.landlordId === user?.id);
-    const availableRooms = myProperties.reduce((sum, p) => sum + p.availableRooms, 0);
+    const [properties, setProperties] = useState([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        const fetchProperties = async () => {
+            setLoading(true);
+            const result = await getMyProperties();
+            if (result.success) {
+                setProperties(result.propiedades || []);
+            }
+            setLoading(false);
+        };
+        fetchProperties();
+    }, []);
+
+    const availableRooms = properties.reduce((sum, p) => sum + (p.habitaciones_disponibles || p.availableRooms || 0), 0);
 
     return (
         <div className="dashboard-page">
@@ -29,7 +43,7 @@ function LandlordDashboard() {
                 <div className="dashboard-stats animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="stat-card">
                         <div className="stat-icon">Prop.</div>
-                        <div className="stat-value">{myProperties.length}</div>
+                        <div className="stat-value">{properties.length}</div>
                         <div className="stat-label">Propiedades Publicadas</div>
                     </div>
                     <div className="stat-card">
@@ -39,12 +53,12 @@ function LandlordDashboard() {
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Int.</div>
-                        <div className="stat-value">12</div>
+                        <div className="stat-value">0</div>
                         <div className="stat-label">Tenants Interesados</div>
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Cal.</div>
-                        <div className="stat-value">4.9</div>
+                        <div className="stat-value">N/A</div>
                         <div className="stat-label">Calificación</div>
                     </div>
                 </div>
@@ -55,23 +69,33 @@ function LandlordDashboard() {
                         <Link to="/landlord/properties" className="btn btn-ghost btn-sm">Gestionar →</Link>
                     </div>
                     <div className="dashboard-card-body">
-                        {myProperties.length > 0 ? (
+                        {properties.length > 0 ? (
                             <div className="landlord-property-list">
-                                {myProperties.map((prop) => (
-                                    <div key={prop.id} className="landlord-property-item">
-                                        <div className="landlord-property-image">Sin imagen</div>
-                                        <div className="landlord-property-info">
-                                            <h3 className="landlord-property-title">{prop.title}</h3>
-                                            <p className="landlord-property-location">{prop.city}</p>
-                                            <p className="landlord-property-meta">
-                                                {prop.rooms} hab. · {prop.availableRooms} disponible{prop.availableRooms !== 1 ? 's' : ''} · ${prop.price.toLocaleString()}/mes
-                                            </p>
+                                {properties.map((prop) => {
+                                    const id = prop.id_propiedad || prop.id;
+                                    const title = prop.titulo || prop.title || '';
+                                    const city = prop.ciudad || prop.city || '';
+                                    const rooms = prop.habitaciones || prop.rooms || 0;
+                                    const avail = prop.habitaciones_disponibles || prop.availableRooms || 0;
+                                    const price = prop.precio || prop.price || 0;
+                                    const available = prop.disponible !== undefined ? prop.disponible : (prop.available !== undefined ? prop.available : true);
+
+                                    return (
+                                        <div key={id} className="landlord-property-item">
+                                            <div className="landlord-property-image">Sin imagen</div>
+                                            <div className="landlord-property-info">
+                                                <h3 className="landlord-property-title">{title}</h3>
+                                                <p className="landlord-property-location">{city}</p>
+                                                <p className="landlord-property-meta">
+                                                    {rooms} hab. · {avail} disponible{avail !== 1 ? 's' : ''} · ${price.toLocaleString()}/mes
+                                                </p>
+                                            </div>
+                                            <span className={`badge ${available ? 'badge-success' : 'badge-error'}`}>
+                                                {available ? 'Activa' : 'Inactiva'}
+                                            </span>
                                         </div>
-                                        <span className={`badge ${prop.available ? 'badge-success' : 'badge-error'}`}>
-                                            {prop.available ? 'Activa' : 'Inactiva'}
-                                        </span>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         ) : (
                             <p className="empty-state">Aún no has publicado propiedades</p>
