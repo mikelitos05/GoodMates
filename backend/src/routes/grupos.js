@@ -3,6 +3,13 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const {
+    construirErrorRegla,
+    getTenantConvivenciaContext,
+    removerTenantDeConvivenciaActiva,
+    validarUnionAConvivenciaActiva,
+    enviarErrorRegla,
+} = require('../services/convivenciaRules');
 
 // Obtener el grupo de roommates del usuario autenticado
 router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res) => {
@@ -198,6 +205,9 @@ router.post('/:id/miembros', verificarToken, verificarRol('tenant'), async (req,
             });
         }
 
+        const contextoObjetivo = await getTenantConvivenciaContext(pool, id_usuario);
+        validarUnionAConvivenciaActiva(contextoObjetivo);
+
         // Agregar al usuario como miembro
         const id_miembro = uuidv4();
         await pool.query(
@@ -212,67 +222,65 @@ router.post('/:id/miembros', verificarToken, verificarRol('tenant'), async (req,
 
     } catch (error) {
         console.error('Error agregando miembro:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor',
-        });
+        return enviarErrorRegla(res, error, 'Error interno del servidor');
     }
 });
 
 // Remover un miembro del grupo (solo el creador puede remover, o un usuario puede salirse)
 router.delete('/:id/miembros/:idUsuario', verificarToken, async (req, res) => {
+    const connection = await pool.getConnection();
+
     try {
         const { id, idUsuario } = req.params;
+        await connection.beginTransaction();
 
         // Verificar si es el creador o si el usuario se esta saliendo el mismo
-        const [miMembresía] = await pool.query(
-            'SELECT rol_en_grupo FROM miembros_grupo WHERE id_grupo = ? AND id_usuario = ?',
+        const [miMembresia] = await connection.query(
+            `SELECT mg.rol_en_grupo
+             FROM miembros_grupo mg
+             JOIN grupos_roommates g ON g.id_grupo = mg.id_grupo
+             WHERE mg.id_grupo = ? AND mg.id_usuario = ? AND g.activo = TRUE
+             FOR UPDATE`,
             [id, req.usuario.id]
         );
 
-        if (miMembresía.length === 0) {
-            return res.status(403).json({
-                success: false,
-                message: 'No eres miembro de este grupo',
-            });
+        if (miMembresia.length === 0) {
+            throw construirErrorRegla('FORBIDDEN', 'No eres miembro de este grupo', 403);
         }
 
         // Solo el creador puede remover a otros, o un usuario puede salirse
-        const esCreador = miMembresía[0].rol_en_grupo === 'creador';
+        const esCreador = miMembresia[0].rol_en_grupo === 'creador';
         const esMismoUsuario = req.usuario.id === idUsuario;
 
         if (!esCreador && !esMismoUsuario) {
-            return res.status(403).json({
-                success: false,
-                message: 'Solo el creador del grupo puede remover miembros',
-            });
+            throw construirErrorRegla(
+                'FORBIDDEN',
+                'Solo el creador del grupo puede remover miembros',
+                403
+            );
         }
 
-        // No permitir que el creador se remueva a si mismo (debe eliminar el grupo)
-        if (esCreador && esMismoUsuario) {
-            return res.status(400).json({
-                success: false,
-                message: 'El creador no puede salirse del grupo. Elimina el grupo en su lugar.',
-            });
-        }
-
-        // Remover al miembro
-        await pool.query(
-            'DELETE FROM miembros_grupo WHERE id_grupo = ? AND id_usuario = ?',
-            [id, idUsuario]
-        );
+        const resultado = await removerTenantDeConvivenciaActiva(connection, {
+            idGrupo: id,
+            idTenant: idUsuario,
+            incrementarDisponibilidad: true,
+        });
+        await connection.commit();
 
         res.json({
             success: true,
-            message: 'Miembro removido del grupo',
+            message: esMismoUsuario
+                ? 'Saliste del grupo exitosamente'
+                : 'Miembro removido del grupo',
+            resultado,
         });
 
     } catch (error) {
+        await connection.rollback();
         console.error('Error removiendo miembro:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Error interno del servidor',
-        });
+        return enviarErrorRegla(res, error, 'Error interno del servidor');
+    } finally {
+        connection.release();
     }
 });
 

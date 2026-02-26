@@ -6,6 +6,12 @@ const path = require('path');
 const fs = require('fs');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const {
+    construirErrorRegla,
+    contarInquilinosActivosEnPropiedad,
+    removerTenantDeConvivenciaActiva,
+    enviarErrorRegla,
+} = require('../services/convivenciaRules');
 
 // Configuracion de multer para subir imagenes de propiedades al disco local
 const storage = multer.diskStorage({
@@ -144,6 +150,117 @@ router.get('/mis-propiedades', verificarToken, verificarRol('landlord'), async (
     }
 });
 
+// Obtener los inquilinos activos de una propiedad del landlord autenticado
+router.get('/:id/inquilinos', verificarToken, verificarRol('landlord'), async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const [propRows] = await pool.query(
+            'SELECT id_propiedad FROM propiedades WHERE id_propiedad = ? AND id_landlord = ?',
+            [id, req.usuario.id]
+        );
+
+        if (propRows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Propiedad no encontrada o no tienes permiso para consultarla',
+            });
+        }
+
+        const [inquilinos] = await pool.query(
+            `SELECT mg.id_usuario, u.nombre, u.apellido, u.email, mg.rol_en_grupo, mg.fecha_union,
+                    s.id_solicitud AS id_solicitud_chat
+             FROM grupos_roommates g
+             JOIN miembros_grupo mg ON mg.id_grupo = g.id_grupo
+             JOIN usuarios u ON u.id_usuario = mg.id_usuario
+             LEFT JOIN solicitudes_informes s
+                ON s.id_tenant = mg.id_usuario
+               AND s.id_propiedad = g.id_propiedad
+               AND s.estado IN ('aceptada', 'confirmada')
+             WHERE g.id_propiedad = ? AND g.activo = TRUE
+             ORDER BY mg.fecha_union ASC`,
+            [id]
+        );
+
+        return res.json({
+            success: true,
+            inquilinos,
+        });
+    } catch (error) {
+        console.error('Error obteniendo inquilinos de la propiedad:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    }
+});
+
+// Remover un inquilino activo de una propiedad del landlord autenticado
+router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlord'), async (req, res) => {
+    const connection = await pool.getConnection();
+
+    try {
+        const { id, idTenant } = req.params;
+        await connection.beginTransaction();
+
+        const [propRows] = await connection.query(
+            `SELECT id_propiedad
+             FROM propiedades
+             WHERE id_propiedad = ? AND id_landlord = ?
+             FOR UPDATE`,
+            [id, req.usuario.id]
+        );
+
+        if (propRows.length === 0) {
+            throw construirErrorRegla(
+                'PROPERTY_NOT_FOUND',
+                'Propiedad no encontrada o no tienes permiso para administrarla',
+                404
+            );
+        }
+
+        const [tenantRows] = await connection.query(
+            `SELECT mg.id_grupo
+             FROM miembros_grupo mg
+             JOIN grupos_roommates g ON g.id_grupo = mg.id_grupo
+             WHERE mg.id_usuario = ?
+               AND g.id_propiedad = ?
+               AND g.activo = TRUE
+             LIMIT 1
+             FOR UPDATE`,
+            [idTenant, id]
+        );
+
+        if (tenantRows.length === 0) {
+            throw construirErrorRegla(
+                'TENANT_NOT_IN_PROPERTY',
+                'El inquilino no pertenece a un grupo activo de esta propiedad',
+                404
+            );
+        }
+
+        const resultado = await removerTenantDeConvivenciaActiva(connection, {
+            idGrupo: tenantRows[0].id_grupo,
+            idTenant,
+            incrementarDisponibilidad: true,
+        });
+
+        await connection.commit();
+
+        return res.json({
+            success: true,
+            message: 'Inquilino removido exitosamente de la propiedad',
+            resultado,
+        });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error removiendo inquilino de propiedad:', error);
+        return enviarErrorRegla(res, error, 'Error interno del servidor');
+    } finally {
+        connection.release();
+    }
+});
+
 // Obtener el detalle de una propiedad por su ID
 router.get('/:id', async (req, res) => {
     try {
@@ -186,7 +303,7 @@ router.post('/', verificarToken, verificarRol('landlord'), upload.array('imagene
         const {
             titulo, descripcion, direccion, ciudad, estado,
             precio, habitaciones, banos, habitaciones_disponibles,
-            area, amenidades, reglas, lugares_cercanos, latitud, longitud
+            min_meses_permanencia, area, amenidades, reglas, lugares_cercanos, latitud, longitud
         } = req.body;
 
         // Validar campos obligatorios
@@ -216,14 +333,16 @@ router.post('/', verificarToken, verificarRol('landlord'), upload.array('imagene
         await pool.query(
             `INSERT INTO propiedades
         (id_propiedad, id_landlord, titulo, descripcion, direccion, ciudad, estado,
-         precio, habitaciones, banos, habitaciones_disponibles, area,
+         precio, habitaciones, banos, habitaciones_disponibles, min_meses_permanencia, area,
          amenidades, reglas, imagenes, lugares_cercanos, latitud, longitud)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 id_propiedad, req.usuario.id, titulo, descripcion || null,
                 direccion || null, ciudad || null, estado || null,
                 parseFloat(precio), parseInt(habitaciones), parseInt(banos),
-                parseInt(habitaciones_disponibles), area ? parseFloat(area) : null,
+                parseInt(habitaciones_disponibles),
+                min_meses_permanencia ? parseInt(min_meses_permanencia) : null,
+                area ? parseFloat(area) : null,
                 JSON.stringify(amenidadesArr), JSON.stringify(reglasArr),
                 JSON.stringify(imagenes), JSON.stringify(lugaresArr),
                 latitud ? parseFloat(latitud) : null, longitud ? parseFloat(longitud) : null
@@ -270,7 +389,7 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
         const {
             titulo, descripcion, direccion, ciudad, estado,
             precio, habitaciones, banos, habitaciones_disponibles,
-            area, amenidades, reglas, lugares_cercanos, disponible, destacada,
+            min_meses_permanencia, area, amenidades, reglas, lugares_cercanos, disponible, destacada,
             latitud, longitud
         } = req.body;
 
@@ -297,7 +416,7 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
         await pool.query(
             `UPDATE propiedades SET
         titulo = ?, descripcion = ?, direccion = ?, ciudad = ?, estado = ?,
-        precio = ?, habitaciones = ?, banos = ?, habitaciones_disponibles = ?,
+        precio = ?, habitaciones = ?, banos = ?, habitaciones_disponibles = ?, min_meses_permanencia = ?,
         area = ?, amenidades = ?, reglas = ?, imagenes = ?, lugares_cercanos = ?,
         disponible = ?, destacada = ?, latitud = ?, longitud = ?
        WHERE id_propiedad = ?`,
@@ -311,6 +430,9 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
                 habitaciones ? parseInt(habitaciones) : existing[0].habitaciones,
                 banos ? parseInt(banos) : existing[0].banos,
                 habitaciones_disponibles ? parseInt(habitaciones_disponibles) : existing[0].habitaciones_disponibles,
+                min_meses_permanencia !== undefined
+                    ? (min_meses_permanencia ? parseInt(min_meses_permanencia) : null)
+                    : existing[0].min_meses_permanencia,
                 area ? parseFloat(area) : existing[0].area,
                 JSON.stringify(amenidadesArr),
                 JSON.stringify(reglasArr),
@@ -353,6 +475,15 @@ router.delete('/:id', verificarToken, verificarRol('landlord'), async (req, res)
             return res.status(404).json({
                 success: false,
                 message: 'Propiedad no encontrada o no tienes permiso para eliminarla',
+            });
+        }
+
+        const inquilinosActivos = await contarInquilinosActivosEnPropiedad(pool, id);
+        if (inquilinosActivos > 0) {
+            return res.status(409).json({
+                success: false,
+                code: 'PROPERTY_HAS_ACTIVE_TENANTS',
+                message: 'No puedes eliminar una propiedad con inquilinos activos',
             });
         }
 

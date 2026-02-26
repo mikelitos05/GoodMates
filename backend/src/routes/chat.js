@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken } = require('../middleware/authMiddleware');
 
-// Obtener todos los chats activos del usuario (solicitudes aceptadas)
+// Obtener todos los chats activos del usuario (solicitudes aceptadas o confirmadas)
 router.get('/mis-chats', verificarToken, async (req, res) => {
     try {
         const userId = req.usuario.id;
@@ -20,7 +20,7 @@ router.get('/mis-chats', verificarToken, async (req, res) => {
              JOIN propiedades p ON s.id_propiedad = p.id_propiedad
              JOIN usuarios t ON s.id_tenant = t.id_usuario
              JOIN usuarios l ON s.id_landlord = l.id_usuario
-             WHERE s.estado = 'aceptada' AND (s.id_tenant = ? OR s.id_landlord = ?)
+             WHERE s.estado IN ('aceptada', 'confirmada') AND (s.id_tenant = ? OR s.id_landlord = ?)
              ORDER BY fecha_ultimo_mensaje DESC, s.fecha_actualizacion DESC`,
             [userId, userId]
         );
@@ -44,7 +44,7 @@ router.get('/solicitud/:idSolicitud', verificarToken, async (req, res) => {
         const { idSolicitud } = req.params;
         const userId = req.usuario.id;
 
-        // Verificar que el usuario es participante y la solicitud está aceptada
+        // Verificar que el usuario es participante y la solicitud esta habilitada para chat
         const [solRows] = await pool.query(
             `SELECT s.*, p.titulo AS titulo_propiedad,
                     t.nombre AS tenant_nombre, t.apellido AS tenant_apellido,
@@ -61,7 +61,7 @@ router.get('/solicitud/:idSolicitud', verificarToken, async (req, res) => {
             return res.status(404).json({ success: false, message: 'Chat no encontrado' });
         }
 
-        if (solRows[0].estado !== 'aceptada') {
+        if (!['aceptada', 'confirmada'].includes(solRows[0].estado)) {
             return res.status(403).json({ success: false, message: 'Este chat aún no ha sido habilitado' });
         }
 
@@ -98,10 +98,14 @@ router.post('/solicitud/:idSolicitud', verificarToken, async (req, res) => {
             return res.status(400).json({ success: false, message: 'El mensaje no puede estar vacío' });
         }
 
-        // Verificar participante y solicitud aceptada
+        // Verificar participante y solicitud habilitada para chat
         const [solRows] = await pool.query(
-            'SELECT * FROM solicitudes_informes WHERE id_solicitud = ? AND estado = ? AND (id_tenant = ? OR id_landlord = ?)',
-            [idSolicitud, 'aceptada', userId, userId]
+            `SELECT *
+             FROM solicitudes_informes
+             WHERE id_solicitud = ?
+               AND estado IN ('aceptada', 'confirmada')
+               AND (id_tenant = ? OR id_landlord = ?)`,
+            [idSolicitud, userId, userId]
         );
 
         if (solRows.length === 0) {

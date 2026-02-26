@@ -75,7 +75,6 @@ function TenantDashboard() {
                     </div>
                 </div>
 
-
                 <div className="dashboard-grid animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
 
                     <div className="dashboard-card">

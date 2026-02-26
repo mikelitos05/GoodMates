@@ -1,23 +1,28 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyGroup } from '../../services/api';
+import { getMyGroup, removeGroupMember } from '../../services/api';
 import './RoommateGroup.css';
 
 function RoommateGroup() {
     const { user } = useAuth();
     const [group, setGroup] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [leaving, setLeaving] = useState(false);
+    const [feedback, setFeedback] = useState('');
+
+    const fetchData = async () => {
+        setLoading(true);
+        const groupRes = await getMyGroup();
+        if (groupRes.success && groupRes.grupo) {
+            setGroup(groupRes.grupo);
+        } else {
+            setGroup(null);
+        }
+        setLoading(false);
+    };
 
     useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            const groupRes = await getMyGroup();
-            if (groupRes.success && groupRes.grupo) {
-                setGroup(groupRes.grupo);
-            }
-            setLoading(false);
-        };
         fetchData();
     }, []);
 
@@ -53,6 +58,27 @@ function RoommateGroup() {
     const propCity = property?.ciudad || property?.city || '';
     const propPrice = property?.precio || property?.price || 0;
 
+    const handleLeaveGroup = async () => {
+        if (!group?.id || !user?.id || leaving) return;
+
+        const confirmLeave = window.confirm('¿Seguro que deseas salir del grupo?');
+        if (!confirmLeave) return;
+
+        setLeaving(true);
+        setFeedback('');
+
+        const result = await removeGroupMember(group.id, user.id);
+
+        if (result.success) {
+            setFeedback(result.message || 'Saliste del grupo exitosamente.');
+            await fetchData();
+        } else {
+            setFeedback(result.error || 'No se pudo completar la operación.');
+        }
+
+        setLeaving(false);
+    };
+
     return (
         <div className="group-page">
             <div className="container">
@@ -63,7 +89,15 @@ function RoommateGroup() {
                             {propTitle ? propTitle : 'Grupo de roommates'}
                             {group.fecha_creacion ? ` · Creado el ${group.fecha_creacion.split('T')[0]}` : ''}
                         </p>
+                        {feedback && (
+                            <p className="section-subtitle" style={{ marginTop: '8px' }}>
+                                {feedback}
+                            </p>
+                        )}
                     </div>
+                    <button className="btn btn-danger" onClick={handleLeaveGroup} disabled={leaving}>
+                        {leaving ? 'Saliendo...' : 'Salir del Grupo'}
+                    </button>
                 </div>
 
 

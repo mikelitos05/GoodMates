@@ -5,9 +5,9 @@ const initDatabase = async () => {
   try {
     // Eliminar tablas en orden inverso de dependencia para evitar errores de FK
     // Esto asegura que el esquema siempre este actualizado
-    //await pool.query('DROP TABLE IF EXISTS notificaciones');
-    //await pool.query('DROP TABLE IF EXISTS calificaciones');
-    //await pool.query('DROP TABLE IF EXISTS respuestas_board');
+    // await pool.query('DROP TABLE IF EXISTS notificaciones');
+    // await pool.query('DROP TABLE IF EXISTS calificaciones');
+    // await pool.query('DROP TABLE IF EXISTS respuestas_board');
     // await pool.query('DROP TABLE IF EXISTS publicaciones_board');
     // await pool.query('DROP TABLE IF EXISTS tareas');
     // await pool.query('DROP TABLE IF EXISTS miembros_grupo');
@@ -35,13 +35,47 @@ const initDatabase = async () => {
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         estado_cuenta ENUM('activo', 'suspendido', 'baja') DEFAULT 'activo',
         rol ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant',
+        modo_busqueda_activo BOOLEAN NOT NULL DEFAULT FALSE,
+        fecha_activacion_busqueda TIMESTAMP NULL,
+        id_solicitud_traslado_pendiente CHAR(36) NULL,
         INDEX idx_nombre_usuario (nombre_usuario),
         INDEX idx_email (email),
         INDEX idx_rol (rol),
-        INDEX idx_estado (estado_cuenta)
+        INDEX idx_estado (estado_cuenta),
+        INDEX idx_traslado_pendiente (id_solicitud_traslado_pendiente)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla usuarios verificada');
+
+    // Agregar columnas de convivencia en usuarios para bases existentes.
+    try {
+      await pool.query('ALTER TABLE usuarios ADD COLUMN modo_busqueda_activo BOOLEAN NOT NULL DEFAULT FALSE');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando modo_busqueda_activo en usuarios:', e.message);
+      }
+    }
+    try {
+      await pool.query('ALTER TABLE usuarios ADD COLUMN fecha_activacion_busqueda TIMESTAMP NULL');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando fecha_activacion_busqueda en usuarios:', e.message);
+      }
+    }
+    try {
+      await pool.query('ALTER TABLE usuarios ADD COLUMN id_solicitud_traslado_pendiente CHAR(36) NULL');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando id_solicitud_traslado_pendiente en usuarios:', e.message);
+      }
+    }
+    try {
+      await pool.query('ALTER TABLE usuarios ADD INDEX idx_traslado_pendiente (id_solicitud_traslado_pendiente)');
+    } catch (e) {
+      if (!e.message.includes('Duplicate key name')) {
+        console.error('Error agregando indice idx_traslado_pendiente en usuarios:', e.message);
+      }
+    }
 
     // Tabla de perfiles extendidos (informacion detallada del tenant para compatibilidad)
     await pool.query(`
@@ -82,6 +116,7 @@ const initDatabase = async () => {
         habitaciones INT NOT NULL,
         banos INT NOT NULL,
         habitaciones_disponibles INT NOT NULL,
+        min_meses_permanencia INT NULL,
         area DECIMAL(10,2),
         amenidades JSON,
         reglas JSON,
@@ -111,6 +146,15 @@ const initDatabase = async () => {
       // Las columnas ya existen, ignorar el error
       if (!e.message.includes('Duplicate column')) {
         console.error('Error agregando columnas de coordenadas:', e.message);
+      }
+    }
+
+    // Agregar configuracion de permanencia por propiedad para bases existentes.
+    try {
+      await pool.query('ALTER TABLE propiedades ADD COLUMN min_meses_permanencia INT NULL');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando min_meses_permanencia en propiedades:', e.message);
       }
     }
 
@@ -274,7 +318,7 @@ const initDatabase = async () => {
         id_tenant CHAR(36) NOT NULL,
         id_propiedad CHAR(36) NOT NULL,
         id_landlord CHAR(36) NOT NULL,
-        estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada') DEFAULT 'pendiente',
+        estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada', 'traslado_pendiente') DEFAULT 'pendiente',
         mensaje_tenant TEXT,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -289,9 +333,9 @@ const initDatabase = async () => {
     `);
     console.log('Tabla solicitudes_informes verificada');
 
-    // Actualizar enum de estado en solicitudes_informes si la tabla ya existía sin 'confirmada'/'declinada'
+    // Actualizar enum de estado en solicitudes_informes para incluir traslado_pendiente.
     try {
-      await pool.query(`ALTER TABLE solicitudes_informes MODIFY COLUMN estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada') DEFAULT 'pendiente'`);
+      await pool.query(`ALTER TABLE solicitudes_informes MODIFY COLUMN estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada', 'traslado_pendiente') DEFAULT 'pendiente'`);
     } catch (e) {
       // Ignorar si ya tiene el enum correcto
     }

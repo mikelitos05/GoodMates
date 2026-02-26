@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { getMatches, acceptMatch, rejectMatch } from '../../services/api';
 import './MatchesPage.css';
 
 function MatchesPage() {
-    const { user } = useAuth();
     const [matches, setMatches] = useState([]);
     const [loading, setLoading] = useState(true);
 
@@ -13,7 +11,15 @@ function MatchesPage() {
             setLoading(true);
             const result = await getMatches();
             if (result.success) {
-                setMatches(result.matches || []);
+                const normalizados = (result.matches || []).map((m) => ({
+                    ...m,
+                    estado: m.estado || m.status || 'pendiente',
+                    porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
+                    usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
+                    ciudad: m.ciudad || m.matchedUserCity || '',
+                    edad: m.edad || m.matchedUserAge || '',
+                }));
+                setMatches(normalizados);
             }
             setLoading(false);
         };
@@ -27,6 +33,8 @@ function MatchesPage() {
             setMatches((prev) =>
                 prev.map((m) => (m.id_match === matchId ? { ...m, estado: action === 'accepted' ? 'aceptado' : 'rechazado' } : m))
             );
+        } else if (action === 'accepted') {
+            alert(result.error || 'No fue posible procesar el match');
         }
     };
 

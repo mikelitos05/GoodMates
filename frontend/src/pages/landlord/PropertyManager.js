@@ -87,6 +87,7 @@ function PropertyManager() {
     const [imagePreviews, setImagePreviews] = useState([]);  // preview URLs
     const [existingImages, setExistingImages] = useState([]); // paths from DB
     const [geocoding, setGeocoding] = useState(false);
+    const [actionMessage, setActionMessage] = useState(null);
     const fileInputRef = useRef(null);
     const [mapKey, setMapKey] = useState(0); // force re-mount map
 
@@ -192,7 +193,19 @@ function PropertyManager() {
         const result = await deleteProperty(id);
         if (result.success) {
             setProperties((prev) => prev.filter((p) => (p.id_propiedad || p.id) !== id));
+            setActionMessage({ type: 'success', text: 'Propiedad eliminada exitosamente.' });
+            return;
         }
+
+        if (result.code === 'PROPERTY_HAS_ACTIVE_TENANTS') {
+            setActionMessage({
+                type: 'error',
+                text: 'No puedes eliminar esta propiedad porque tiene inquilinos activos. Primero debes removerlos desde la sección de inquilinos.',
+            });
+            return;
+        }
+
+        setActionMessage({ type: 'error', text: result.error || 'No se pudo eliminar la propiedad.' });
     };
 
     const handleSubmit = async (e) => {
@@ -292,6 +305,21 @@ function PropertyManager() {
                         {showForm ? '✕ Cancelar' : '+ Nueva Propiedad'}
                     </button>
                 </div>
+
+                {actionMessage && (
+                    <div
+                        className="animate-fade-in-up"
+                        style={{
+                            marginBottom: 'var(--space-4)',
+                            padding: 'var(--space-3) var(--space-4)',
+                            borderRadius: 'var(--radius-md)',
+                            border: `1px solid ${actionMessage.type === 'error' ? 'var(--danger, #ef4444)' : 'var(--success, #22c55e)'}`,
+                            backgroundColor: actionMessage.type === 'error' ? 'rgba(239, 68, 68, 0.08)' : 'rgba(34, 197, 94, 0.08)',
+                        }}
+                    >
+                        {actionMessage.text}
+                    </div>
+                )}
 
 
                 {showForm && (

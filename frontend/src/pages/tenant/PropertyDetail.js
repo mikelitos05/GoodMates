@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { getPropertyById, getImageUrl, createInquiry, getMyInquiries } from '../../services/api';
+import {
+    getPropertyById,
+    getImageUrl,
+    createInquiry,
+    getConvivenciaEstado,
+    getMyInquiries,
+} from '../../services/api';
 import './PropertyDetail.css';
 
 function PropertyDetail() {
@@ -11,6 +17,8 @@ function PropertyDetail() {
     const [inquiryState, setInquiryState] = useState(null); // null | 'pendiente' | 'aceptada' | 'rechazada' | 'confirmada' | 'declinada'
     const [inquirySolicitudId, setInquirySolicitudId] = useState(null);
     const [sending, setSending] = useState(false);
+    const [convivenciaActiva, setConvivenciaActiva] = useState(false);
+    const [mensajeBloqueo, setMensajeBloqueo] = useState('');
     const [activeImg, setActiveImg] = useState(0);
     const [lightbox, setLightbox] = useState(false);
 
@@ -40,6 +48,20 @@ function PropertyDetail() {
         fetchProperty();
     }, [id]);
 
+    useEffect(() => {
+        const fetchConvivenciaEstado = async () => {
+            const result = await getConvivenciaEstado();
+            if (result.success) {
+                const activa = !!result.convivenciaActiva;
+                setConvivenciaActiva(activa);
+                if (activa) {
+                    setMensajeBloqueo('Puedes explorar propiedades, pero no postularte mientras pertenezcas a un grupo activo.');
+                }
+            }
+        };
+        fetchConvivenciaEstado();
+    }, []);
+
     // Check if tenant already sent an inquiry for this property
     useEffect(() => {
         const checkExisting = async () => {
@@ -57,13 +79,23 @@ function PropertyDetail() {
 
     const handleInquiry = async () => {
         if (inquiryState) return;
+        if (convivenciaActiva) {
+            setMensajeBloqueo('Debes salir de tu grupo actual antes de enviar una solicitud.');
+            return;
+        }
+
         setSending(true);
         const result = await createInquiry(id, '');
         if (result.success) {
             setInquiryState('pendiente');
             setInquirySolicitudId(result.solicitud?.id_solicitud);
         } else {
-            alert(result.error || 'Error al enviar solicitud');
+            if (result.code === 'ACTIVE_CONVIVENCIA_EXISTS') {
+                setConvivenciaActiva(true);
+                setMensajeBloqueo(result.error || 'No puedes aplicar mientras pertenezcas a un grupo activo.');
+            } else {
+                alert(result.error || 'Error al enviar solicitud');
+            }
         }
         setSending(false);
     };
@@ -126,7 +158,16 @@ function PropertyDetail() {
                 return { label: '✅ Confirmado como Inquilino', className: 'btn btn-success btn-lg', disabled: true };
             case 'declinada':
                 return { label: '✕ Solicitud Declinada', className: 'btn btn-danger btn-lg', disabled: true };
+            case 'traslado_pendiente':
+                return { label: '⏳ Solicitud en revisión', className: 'btn btn-accent btn-lg', disabled: true };
             default:
+                if (convivenciaActiva) {
+                    return {
+                        label: 'No disponible en grupo activo',
+                        className: 'btn btn-accent btn-lg',
+                        disabled: true,
+                    };
+                }
                 return { label: '📩 Solicitar Informes', className: 'btn btn-primary btn-lg', disabled: false };
         }
     };
@@ -306,6 +347,11 @@ function PropertyDetail() {
                                 {inquiryState === 'declinada' && (
                                     <p className="interest-note animate-fade-in" style={{ color: 'var(--danger, #ef4444)' }}>
                                         El arrendador ha declinado tu solicitud después de la revisión. No es posible volver a solicitar.
+                                    </p>
+                                )}
+                                {mensajeBloqueo && (
+                                    <p className="interest-note animate-fade-in" style={{ color: 'var(--warning, #f59e0b)' }}>
+                                        {mensajeBloqueo}
                                     </p>
                                 )}
                             </div>

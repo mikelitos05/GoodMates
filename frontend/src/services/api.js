@@ -25,7 +25,7 @@ const authHeaders = () => ({
 const handleResponse = async (response) => {
     const data = await response.json();
     if (!response.ok) {
-        return { success: false, error: data.message };
+        return { success: false, error: data.message, code: data.code };
     }
     return { success: true, ...data };
 };
@@ -135,6 +135,21 @@ export const getPropertyById = async (id) => {
 // Obtener las propiedades del landlord autenticado
 export const getMyProperties = async () => {
     return await apiRequest(`${API_URL}/propiedades/mis-propiedades`, {
+        headers: authHeaders(),
+    });
+};
+
+// Obtener inquilinos activos de una propiedad del landlord
+export const getPropertyTenants = async (propertyId) => {
+    return await apiRequest(`${API_URL}/propiedades/${propertyId}/inquilinos`, {
+        headers: authHeaders(),
+    });
+};
+
+// Remover un inquilino activo de una propiedad del landlord
+export const removePropertyTenant = async (propertyId, tenantId) => {
+    return await apiRequest(`${API_URL}/propiedades/${propertyId}/inquilinos/${tenantId}`, {
+        method: 'DELETE',
         headers: authHeaders(),
     });
 };
@@ -266,6 +281,13 @@ export const addGroupMember = async (groupId, userId) => {
 export const removeGroupMember = async (groupId, userId) => {
     return await apiRequest(`${API_URL}/grupos/${groupId}/miembros/${userId}`, {
         method: 'DELETE',
+        headers: authHeaders(),
+    });
+};
+
+// Obtener estado de convivencia del tenant autenticado
+export const getConvivenciaEstado = async () => {
+    return await apiRequest(`${API_URL}/convivencia/estado`, {
         headers: authHeaders(),
     });
 };

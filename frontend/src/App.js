@@ -24,6 +24,7 @@ import MatchesPage from './pages/tenant/MatchesPage';
 import LandlordDashboard from './pages/landlord/LandlordDashboard';
 import PropertyManager from './pages/landlord/PropertyManager';
 import InquiryManager from './pages/landlord/InquiryManager';
+import LandlordTenants from './pages/landlord/LandlordTenants';
 
 
 import RoommateGroup from './pages/roommate/RoommateGroup';
@@ -100,6 +101,11 @@ function App() {
               <Route path="/landlord/inquiries" element={
                 <ProtectedRoute allowedRoles={['landlord']}>
                   <InquiryManager />
+                </ProtectedRoute>
+              } />
+              <Route path="/landlord/tenants" element={
+                <ProtectedRoute allowedRoles={['landlord']}>
+                  <LandlordTenants />
                 </ProtectedRoute>
               } />
 

@@ -3,8 +3,87 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const {
+    construirErrorRegla,
+    getTenantConvivenciaContext,
+    validarConsistenciaConvivenciaActiva,
+    enviarErrorRegla,
+} = require('../services/convivenciaRules');
 
-// Tenant crea una solicitud de informes para una propiedad
+async function obtenerTituloPropiedad(executor, idPropiedad) {
+    const [rows] = await executor.query(
+        'SELECT titulo FROM propiedades WHERE id_propiedad = ?',
+        [idPropiedad]
+    );
+    return rows[0]?.titulo || 'la propiedad';
+}
+
+async function obtenerOCrearGrupoActivoPorPropiedad(connection, idPropiedad) {
+    const [grupoRows] = await connection.query(
+        `SELECT id_grupo
+         FROM grupos_roommates
+         WHERE id_propiedad = ? AND activo = TRUE
+         LIMIT 1 FOR UPDATE`,
+        [idPropiedad]
+    );
+
+    if (grupoRows.length > 0) {
+        return grupoRows[0].id_grupo;
+    }
+
+    const [propRows] = await connection.query(
+        'SELECT titulo FROM propiedades WHERE id_propiedad = ? FOR UPDATE',
+        [idPropiedad]
+    );
+
+    if (propRows.length === 0) {
+        throw construirErrorRegla('PROPERTY_NOT_FOUND', 'La propiedad no existe', 404);
+    }
+
+    const idGrupo = uuidv4();
+    const tituloGrupo = `Roommates - ${propRows[0].titulo || 'Propiedad'}`;
+
+    await connection.query(
+        'INSERT INTO grupos_roommates (id_grupo, nombre, id_propiedad) VALUES (?, ?, ?)',
+        [idGrupo, tituloGrupo, idPropiedad]
+    );
+
+    return idGrupo;
+}
+
+async function agregarTenantAGrupo(connection, idGrupo, idTenant) {
+    const [otrosActivos] = await connection.query(
+        `SELECT g.id_grupo
+         FROM miembros_grupo mg
+         JOIN grupos_roommates g ON g.id_grupo = mg.id_grupo
+         WHERE mg.id_usuario = ? AND g.activo = TRUE AND g.id_grupo <> ?
+         FOR UPDATE`,
+        [idTenant, idGrupo]
+    );
+
+    if (otrosActivos.length > 0) {
+        throw construirErrorRegla(
+            'ACTIVE_CONVIVENCIA_EXISTS',
+            'El tenant ya pertenece a otra convivencia activa',
+            409
+        );
+    }
+
+    const [yaEsMiembro] = await connection.query(
+        'SELECT id_miembro FROM miembros_grupo WHERE id_grupo = ? AND id_usuario = ? FOR UPDATE',
+        [idGrupo, idTenant]
+    );
+
+    if (yaEsMiembro.length === 0) {
+        const idMiembro = uuidv4();
+        await connection.query(
+            'INSERT INTO miembros_grupo (id_miembro, id_grupo, id_usuario, rol_en_grupo) VALUES (?, ?, ?, ?)',
+            [idMiembro, idGrupo, idTenant, 'miembro']
+        );
+    }
+}
+
+// Tenant crea una solicitud de informes para una propiedad.
 router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
     try {
         const { id_propiedad, mensaje } = req.body;
@@ -13,7 +92,6 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
             return res.status(400).json({ success: false, message: 'id_propiedad es obligatorio' });
         }
 
-        // Verificar que la propiedad existe y obtener el landlord
         const [propRows] = await pool.query(
             'SELECT id_propiedad, id_landlord, titulo FROM propiedades WHERE id_propiedad = ?',
             [id_propiedad]
@@ -24,8 +102,17 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
         }
 
         const propiedad = propRows[0];
+        const contextoTenant = await getTenantConvivenciaContext(pool, req.usuario.id);
+        validarConsistenciaConvivenciaActiva(contextoTenant);
 
-        // Verificar que no exista ya una solicitud del mismo tenant para esta propiedad
+        if (contextoTenant.convivenciaActiva) {
+            throw construirErrorRegla(
+                'ACTIVE_CONVIVENCIA_EXISTS',
+                'No puedes enviar solicitudes mientras pertenezcas a un grupo activo',
+                409
+            );
+        }
+
         const [existing] = await pool.query(
             'SELECT id_solicitud FROM solicitudes_informes WHERE id_tenant = ? AND id_propiedad = ?',
             [req.usuario.id, id_propiedad]
@@ -43,7 +130,6 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
             [id_solicitud, req.usuario.id, id_propiedad, propiedad.id_landlord, mensaje || null]
         );
 
-        // Crear notificación para el landlord
         const id_notificacion = uuidv4();
         const tenantNombre = req.usuario.nombre || req.usuario.username || 'Un inquilino';
         await pool.query(
@@ -53,11 +139,10 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
                 id_notificacion,
                 propiedad.id_landlord,
                 'Nueva solicitud de informes',
-                `${tenantNombre} está interesado en tu propiedad "${propiedad.titulo}"`,
+                `${tenantNombre} esta interesado en tu propiedad "${propiedad.titulo}"`,
             ]
         );
 
-        // Emitir notificación en tiempo real via Socket.io
         const io = req.app.get('io');
         if (io) {
             io.to(`usuario-${propiedad.id_landlord}`).emit('nueva-solicitud', {
@@ -68,19 +153,18 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
             });
         }
 
-        res.status(201).json({
+        return res.status(201).json({
             success: true,
             message: 'Solicitud enviada exitosamente',
             solicitud: { id_solicitud, estado: 'pendiente' },
         });
-
     } catch (error) {
         console.error('Error creando solicitud:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return enviarErrorRegla(res, error, 'Error interno del servidor');
     }
 });
 
-// Tenant obtiene sus solicitudes enviadas
+// Tenant obtiene sus solicitudes enviadas.
 router.get('/mis-solicitudes', verificarToken, verificarRol('tenant'), async (req, res) => {
     try {
         const [solicitudes] = await pool.query(
@@ -94,21 +178,25 @@ router.get('/mis-solicitudes', verificarToken, verificarRol('tenant'), async (re
             [req.usuario.id]
         );
 
-        // Parse imagenes JSON
         const parsed = solicitudes.map(s => ({
             ...s,
-            imagenes: (() => { try { return typeof s.imagenes === 'string' ? JSON.parse(s.imagenes) : (s.imagenes || []); } catch { return []; } })(),
+            imagenes: (() => {
+                try {
+                    return typeof s.imagenes === 'string' ? JSON.parse(s.imagenes) : (s.imagenes || []);
+                } catch {
+                    return [];
+                }
+            })(),
         }));
 
-        res.json({ success: true, solicitudes: parsed });
-
+        return res.json({ success: true, solicitudes: parsed });
     } catch (error) {
         console.error('Error obteniendo solicitudes del tenant:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
 
-// Landlord obtiene solicitudes recibidas
+// Landlord obtiene solicitudes recibidas.
 router.get('/recibidas', verificarToken, verificarRol('landlord'), async (req, res) => {
     try {
         const [solicitudes] = await pool.query(
@@ -124,18 +212,23 @@ router.get('/recibidas', verificarToken, verificarRol('landlord'), async (req, r
 
         const parsed = solicitudes.map(s => ({
             ...s,
-            imagenes: (() => { try { return typeof s.imagenes === 'string' ? JSON.parse(s.imagenes) : (s.imagenes || []); } catch { return []; } })(),
+            imagenes: (() => {
+                try {
+                    return typeof s.imagenes === 'string' ? JSON.parse(s.imagenes) : (s.imagenes || []);
+                } catch {
+                    return [];
+                }
+            })(),
         }));
 
-        res.json({ success: true, solicitudes: parsed });
-
+        return res.json({ success: true, solicitudes: parsed });
     } catch (error) {
         console.error('Error obteniendo solicitudes recibidas:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
 
-// Landlord acepta una solicitud
+// Landlord acepta una solicitud.
 router.put('/:id/aceptar', verificarToken, verificarRol('landlord'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -158,22 +251,21 @@ router.put('/:id/aceptar', verificarToken, verificarRol('landlord'), async (req,
             ['aceptada', id]
         );
 
-        // Notificar al tenant
         const id_notificacion = uuidv4();
         const landlordNombre = req.usuario.nombre || 'El arrendador';
-
-        // Get property title
-        const [propRows] = await pool.query('SELECT titulo FROM propiedades WHERE id_propiedad = ?', [rows[0].id_propiedad]);
-        const tituloPropiedad = propRows[0]?.titulo || 'la propiedad';
+        const tituloPropiedad = await obtenerTituloPropiedad(pool, rows[0].id_propiedad);
 
         await pool.query(
             `INSERT INTO notificaciones (id_notificacion, id_usuario, titulo, mensaje, tipo)
              VALUES (?, ?, ?, ?, 'solicitud')`,
-            [id_notificacion, rows[0].id_tenant, 'Solicitud aceptada',
-                `${landlordNombre} aceptó tu solicitud para "${tituloPropiedad}". ¡Ya pueden chatear!`]
+            [
+                id_notificacion,
+                rows[0].id_tenant,
+                'Solicitud aceptada',
+                `${landlordNombre} acepto tu solicitud para "${tituloPropiedad}". Ya pueden chatear.`,
+            ]
         );
 
-        // Emitir via Socket.io
         const io = req.app.get('io');
         if (io) {
             io.to(`usuario-${rows[0].id_tenant}`).emit('solicitud-aceptada', {
@@ -183,15 +275,14 @@ router.put('/:id/aceptar', verificarToken, verificarRol('landlord'), async (req,
             });
         }
 
-        res.json({ success: true, message: 'Solicitud aceptada. Se ha habilitado el chat.' });
-
+        return res.json({ success: true, message: 'Solicitud aceptada. Se habilito el chat.' });
     } catch (error) {
         console.error('Error aceptando solicitud:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
 
-// Landlord rechaza una solicitud
+// Landlord rechaza una solicitud.
 router.put('/:id/rechazar', verificarToken, verificarRol('landlord'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -214,15 +305,14 @@ router.put('/:id/rechazar', verificarToken, verificarRol('landlord'), async (req
             ['rechazada', id]
         );
 
-        res.json({ success: true, message: 'Solicitud rechazada' });
-
+        return res.json({ success: true, message: 'Solicitud rechazada' });
     } catch (error) {
         console.error('Error rechazando solicitud:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
 
-// Landlord obtiene el conteo de tenants interesados (pendientes + aceptadas)
+// Landlord obtiene el conteo de tenants interesados.
 router.get('/contador', verificarToken, verificarRol('landlord'), async (req, res) => {
     try {
         const [rows] = await pool.query(
@@ -230,105 +320,104 @@ router.get('/contador', verificarToken, verificarRol('landlord'), async (req, re
              WHERE id_landlord = ? AND estado IN ('pendiente', 'aceptada')`,
             [req.usuario.id]
         );
-        res.json({ success: true, total: rows[0].total });
+        return res.json({ success: true, total: rows[0].total });
     } catch (error) {
         console.error('Error obteniendo contador:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
 
-// Landlord confirma a un inquilino (decisión final positiva tras chatear)
+// Landlord confirma a un inquilino.
 router.put('/:id/confirmar', verificarToken, verificarRol('landlord'), async (req, res) => {
+    const connection = await pool.getConnection();
+
     try {
         const { id } = req.params;
+        await connection.beginTransaction();
 
-        const [rows] = await pool.query(
-            'SELECT * FROM solicitudes_informes WHERE id_solicitud = ? AND id_landlord = ?',
+        const [rows] = await connection.query(
+            `SELECT *
+             FROM solicitudes_informes
+             WHERE id_solicitud = ? AND id_landlord = ?
+             FOR UPDATE`,
             [id, req.usuario.id]
         );
 
         if (rows.length === 0) {
-            return res.status(404).json({ success: false, message: 'Solicitud no encontrada' });
+            throw construirErrorRegla('REQUEST_NOT_FOUND', 'Solicitud no encontrada', 404);
         }
 
         if (rows[0].estado !== 'aceptada') {
-            return res.status(400).json({ success: false, message: 'Solo se pueden confirmar solicitudes aceptadas' });
+            throw construirErrorRegla('INVALID_REQUEST_STATE', 'Solo se pueden confirmar solicitudes aceptadas', 400);
         }
 
-        await pool.query(
+        const solicitud = rows[0];
+        const contexto = await getTenantConvivenciaContext(connection, solicitud.id_tenant, {
+            forUpdateUser: true,
+            forUpdateMembership: true,
+        });
+        validarConsistenciaConvivenciaActiva(contexto);
+
+        if (contexto.convivenciaActiva) {
+            throw construirErrorRegla(
+                'ACTIVE_CONVIVENCIA_EXISTS',
+                'El tenant ya tiene una convivencia activa. Debe salir de su grupo actual antes de ser confirmado.',
+                409
+            );
+        }
+
+        const idGrupo = await obtenerOCrearGrupoActivoPorPropiedad(connection, solicitud.id_propiedad);
+        await agregarTenantAGrupo(connection, idGrupo, solicitud.id_tenant);
+
+        await connection.query(
             'UPDATE solicitudes_informes SET estado = ? WHERE id_solicitud = ?',
             ['confirmada', id]
         );
 
-        // ── Auto-agregar al tenant al grupo de la propiedad ──
-        const id_propiedad = rows[0].id_propiedad;
-        const id_tenant = rows[0].id_tenant;
+        await connection.commit();
 
-        // Buscar grupo existente para esta propiedad
-        let [grupoRows] = await pool.query(
-            'SELECT id_grupo FROM grupos_roommates WHERE id_propiedad = ? AND activo = TRUE',
-            [id_propiedad]
-        );
-
-        let id_grupo;
-        if (grupoRows.length > 0) {
-            id_grupo = grupoRows[0].id_grupo;
-        } else {
-            // Crear un nuevo grupo para la propiedad
-            const [propRows2] = await pool.query('SELECT titulo FROM propiedades WHERE id_propiedad = ?', [id_propiedad]);
-            const tituloGrupo = `Roommates - ${propRows2[0]?.titulo || 'Propiedad'}`;
-            id_grupo = uuidv4();
-            await pool.query(
-                'INSERT INTO grupos_roommates (id_grupo, nombre, id_propiedad) VALUES (?, ?, ?)',
-                [id_grupo, tituloGrupo, id_propiedad]
-            );
-        }
-
-        // Verificar que el tenant no sea ya miembro del grupo
-        const [yaEsMiembro] = await pool.query(
-            'SELECT id_miembro FROM miembros_grupo WHERE id_grupo = ? AND id_usuario = ?',
-            [id_grupo, id_tenant]
-        );
-
-        if (yaEsMiembro.length === 0) {
-            const id_miembro = uuidv4();
-            await pool.query(
-                'INSERT INTO miembros_grupo (id_miembro, id_grupo, id_usuario, rol_en_grupo) VALUES (?, ?, ?, ?)',
-                [id_miembro, id_grupo, id_tenant, 'miembro']
-            );
-        }
-
-        // Notificar al tenant
         const id_notificacion = uuidv4();
         const landlordNombre = req.usuario.nombre || 'El arrendador';
-        const [propRows] = await pool.query('SELECT titulo FROM propiedades WHERE id_propiedad = ?', [id_propiedad]);
-        const tituloPropiedad = propRows[0]?.titulo || 'la propiedad';
+        const tituloPropiedad = await obtenerTituloPropiedad(pool, solicitud.id_propiedad);
+
+        const mensajeNotificacion = `${landlordNombre} te confirmo como inquilino para "${tituloPropiedad}".`;
 
         await pool.query(
             `INSERT INTO notificaciones (id_notificacion, id_usuario, titulo, mensaje, tipo)
              VALUES (?, ?, ?, ?, 'solicitud')`,
-            [id_notificacion, id_tenant, 'Inquilino confirmado',
-                `${landlordNombre} te ha confirmado como inquilino para "${tituloPropiedad}". ¡Ya puedes acceder a tu grupo de roommates!`]
+            [
+                id_notificacion,
+                solicitud.id_tenant,
+                'Inquilino confirmado',
+                mensajeNotificacion,
+            ]
         );
 
         const io = req.app.get('io');
         if (io) {
-            io.to(`usuario-${id_tenant}`).emit('solicitud-confirmada', {
+            io.to(`usuario-${solicitud.id_tenant}`).emit('solicitud-confirmada', {
                 id_solicitud: id,
                 titulo_propiedad: tituloPropiedad,
                 landlord_nombre: landlordNombre,
+                estado: 'confirmada',
             });
         }
 
-        res.json({ success: true, message: 'Inquilino confirmado y agregado al grupo exitosamente.' });
-
+        return res.json({
+            success: true,
+            estado: 'confirmada',
+            message: 'Inquilino confirmado y agregado al grupo exitosamente.',
+        });
     } catch (error) {
+        await connection.rollback();
         console.error('Error confirmando solicitud:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return enviarErrorRegla(res, error, 'Error interno del servidor');
+    } finally {
+        connection.release();
     }
 });
 
-// Landlord declina a un inquilino (decisión final negativa tras chatear)
+// Landlord declina a un inquilino tras chat.
 router.put('/:id/declinar', verificarToken, verificarRol('landlord'), async (req, res) => {
     try {
         const { id } = req.params;
@@ -343,7 +432,10 @@ router.put('/:id/declinar', verificarToken, verificarRol('landlord'), async (req
         }
 
         if (rows[0].estado !== 'aceptada') {
-            return res.status(400).json({ success: false, message: 'Solo se pueden declinar solicitudes aceptadas' });
+            return res.status(400).json({
+                success: false,
+                message: 'Solo se pueden declinar solicitudes aceptadas',
+            });
         }
 
         await pool.query(
@@ -351,24 +443,25 @@ router.put('/:id/declinar', verificarToken, verificarRol('landlord'), async (req
             ['declinada', id]
         );
 
-        // Notificar al tenant
         const id_notificacion = uuidv4();
         const landlordNombre = req.usuario.nombre || 'El arrendador';
-        const [propRows] = await pool.query('SELECT titulo FROM propiedades WHERE id_propiedad = ?', [rows[0].id_propiedad]);
-        const tituloPropiedad = propRows[0]?.titulo || 'la propiedad';
+        const tituloPropiedad = await obtenerTituloPropiedad(pool, rows[0].id_propiedad);
 
         await pool.query(
             `INSERT INTO notificaciones (id_notificacion, id_usuario, titulo, mensaje, tipo)
              VALUES (?, ?, ?, ?, 'solicitud')`,
-            [id_notificacion, rows[0].id_tenant, 'Solicitud declinada',
-                `${landlordNombre} ha declinado tu solicitud para "${tituloPropiedad}".`]
+            [
+                id_notificacion,
+                rows[0].id_tenant,
+                'Solicitud declinada',
+                `${landlordNombre} ha declinado tu solicitud para "${tituloPropiedad}".`,
+            ]
         );
 
-        res.json({ success: true, message: 'Inquilino declinado.' });
-
+        return res.json({ success: true, message: 'Inquilino declinado.' });
     } catch (error) {
         console.error('Error declinando solicitud:', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        return res.status(500).json({ success: false, message: 'Error interno del servidor' });
     }
 });
 

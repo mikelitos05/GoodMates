@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const { contarInquilinosActivosEnPropiedad } = require('../services/convivenciaRules');
 
 // Todas las rutas de admin requieren autenticacion y rol de administrador
 router.use(verificarToken, verificarRol('admin'));
@@ -243,6 +244,15 @@ router.delete('/propiedades/:id', async (req, res) => {
             return res.status(404).json({
                 success: false,
                 message: 'Propiedad no encontrada',
+            });
+        }
+
+        const inquilinosActivos = await contarInquilinosActivosEnPropiedad(pool, id);
+        if (inquilinosActivos > 0) {
+            return res.status(409).json({
+                success: false,
+                code: 'PROPERTY_HAS_ACTIVE_TENANTS',
+                message: 'No se puede eliminar una propiedad con inquilinos activos',
             });
         }
 

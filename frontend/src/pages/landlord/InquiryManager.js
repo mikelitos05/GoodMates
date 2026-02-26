@@ -43,8 +43,9 @@ function InquiryManager() {
     const handleConfirm = async (id) => {
         const result = await confirmInquiry(id);
         if (result.success) {
+            const estadoFinal = result.estado || 'confirmada';
             setInquiries(prev => prev.map(s =>
-                s.id_solicitud === id ? { ...s, estado: 'confirmada' } : s
+                s.id_solicitud === id ? { ...s, estado: estadoFinal } : s
             ));
         }
     };
@@ -121,7 +122,15 @@ function InquiryManager() {
                                         <div className="inquiry-card-top">
                                             <h3 className="inquiry-card-title">{sol.titulo_propiedad}</h3>
                                             <span className={`badge badge-${sol.estado === 'pendiente' ? 'warning' : sol.estado === 'aceptada' ? 'success' : sol.estado === 'confirmada' ? 'success' : 'error'}`}>
-                                                {sol.estado === 'pendiente' ? '⏳ Pendiente' : sol.estado === 'aceptada' ? '✓ Aceptada' : sol.estado === 'confirmada' ? '✅ Confirmada' : sol.estado === 'declinada' ? '✕ Declinada' : '✕ Rechazada'}
+                                                {sol.estado === 'pendiente'
+                                                    ? 'Pendiente'
+                                                    : sol.estado === 'aceptada'
+                                                        ? 'Aceptada'
+                                                        : sol.estado === 'confirmada'
+                                                                ? 'Confirmada'
+                                                                : sol.estado === 'declinada'
+                                                                    ? 'Declinada'
+                                                                    : 'Rechazada'}
                                             </span>
                                         </div>
                                         <p className="inquiry-card-location">{sol.ciudad}</p>
