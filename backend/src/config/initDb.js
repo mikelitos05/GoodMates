@@ -5,9 +5,9 @@ const initDatabase = async () => {
   try {
     // Eliminar tablas en orden inverso de dependencia para evitar errores de FK
     // Esto asegura que el esquema siempre este actualizado
-    // await pool.query('DROP TABLE IF EXISTS notificaciones');
-    // await pool.query('DROP TABLE IF EXISTS calificaciones');
-    // await pool.query('DROP TABLE IF EXISTS respuestas_board');
+    //await pool.query('DROP TABLE IF EXISTS notificaciones');
+    //await pool.query('DROP TABLE IF EXISTS calificaciones');
+    //await pool.query('DROP TABLE IF EXISTS respuestas_board');
     // await pool.query('DROP TABLE IF EXISTS publicaciones_board');
     // await pool.query('DROP TABLE IF EXISTS tareas');
     // await pool.query('DROP TABLE IF EXISTS miembros_grupo');
@@ -274,7 +274,7 @@ const initDatabase = async () => {
         id_tenant CHAR(36) NOT NULL,
         id_propiedad CHAR(36) NOT NULL,
         id_landlord CHAR(36) NOT NULL,
-        estado ENUM('pendiente', 'aceptada', 'rechazada') DEFAULT 'pendiente',
+        estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada') DEFAULT 'pendiente',
         mensaje_tenant TEXT,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -288,6 +288,13 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla solicitudes_informes verificada');
+
+    // Actualizar enum de estado en solicitudes_informes si la tabla ya existía sin 'confirmada'/'declinada'
+    try {
+      await pool.query(`ALTER TABLE solicitudes_informes MODIFY COLUMN estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada') DEFAULT 'pendiente'`);
+    } catch (e) {
+      // Ignorar si ya tiene el enum correcto
+    }
 
     // Tabla de mensajes del chat (chat entre tenant y landlord tras aceptar solicitud)
     await pool.query(`

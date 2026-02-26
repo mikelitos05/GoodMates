@@ -122,7 +122,7 @@ function PropertySearch() {
                     <div className="property-image">
                         {images.length > 0
                             ? <img src={getImageUrl(images[0])} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : <div className="property-image-placeholder">🏠</div>
+                            : <div className="property-image-placeholder"><img src="/house-icon.png" alt="propiedad" style={{ width: 48, height: 48, objectFit: 'contain' }} /></div>
                         }
                         <span className="property-rooms-badge">
                             {availableRooms} hab. disponible{availableRooms !== 1 ? 's' : ''}

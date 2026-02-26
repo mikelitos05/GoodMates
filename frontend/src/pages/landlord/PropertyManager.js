@@ -197,6 +197,14 @@ function PropertyManager() {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        // Validar que haya al menos una imagen
+        const totalImages = imageFiles.length + existingImages.length;
+        if (totalImages === 0) {
+            alert('Debes subir al menos una imagen de la propiedad.');
+            return;
+        }
+
         const propertyData = {
             titulo: form.title,
             descripcion: form.description,
@@ -391,7 +399,7 @@ function PropertyManager() {
 
                                 {/* ──── IMAGE UPLOAD ──── */}
                                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                                    <label className="form-label">📷 Imágenes de la propiedad</label>
+                                    <label className="form-label">📷 Imágenes de la propiedad <span style={{ color: 'var(--danger)' }}>*</span></label>
                                     <input
                                         type="file"
                                         ref={fileInputRef}
@@ -497,7 +505,7 @@ function PropertyManager() {
                                 <div className="manager-property-image">
                                     {images.length > 0
                                         ? <img src={getImageUrl(images[0])} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                                        : '🏠'
+                                        : <img src="/house-icon.png" alt="propiedad" style={{ width: 48, height: 48, objectFit: 'contain' }} />
                                     }
                                 </div>
                                 <div className="manager-property-content">

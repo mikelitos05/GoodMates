@@ -23,7 +23,7 @@ function TaskManager() {
             const groupRes = await getMyGroup();
             if (groupRes.success && groupRes.grupo) {
                 setGroup(groupRes.grupo);
-                const tasksRes = await getGroupTasks(groupRes.grupo.id_grupo);
+                const tasksRes = await getGroupTasks(groupRes.grupo.id);
                 if (tasksRes.success) {
                     setTasks(tasksRes.tareas || []);
                 }
@@ -65,14 +65,14 @@ function TaskManager() {
         e.preventDefault();
         if (!group) return;
         const result = await createTask({
-            id_grupo: group.id_grupo,
+            id_grupo: group.id,
             titulo: form.title,
             descripcion: form.description,
             id_asignado: form.assigneeId,
             fecha_limite: form.dueDate,
         });
         if (result.success) {
-            const tasksRes = await getGroupTasks(group.id_grupo);
+            const tasksRes = await getGroupTasks(group.id);
             if (tasksRes.success) setTasks(tasksRes.tareas || []);
             setForm({ title: '', description: '', assigneeId: '', dueDate: '' });
             setShowForm(false);
@@ -168,8 +168,8 @@ function TaskManager() {
                                     <select className="form-select" value={form.assigneeId} onChange={(e) => setForm({ ...form, assigneeId: e.target.value })} required>
                                         <option value="">Seleccionar...</option>
                                         {members.map((m) => (
-                                            <option key={m.id_usuario} value={m.id_usuario}>
-                                                {m.nombre} {m.apellido}
+                                            <option key={m.id} value={m.id}>
+                                                {m.nombre}
                                             </option>
                                         ))}
                                     </select>

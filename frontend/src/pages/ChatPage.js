@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getChatMessages, sendChatMessage } from '../services/api';
 import './ChatPage.css';
 
-const BACKEND_URL = `http://${window.location.hostname}:5001`;
+const BACKEND_URL = `http://${window.location.hostname}:5000`;
 
 function ChatPage() {
     const { idSolicitud } = useParams();

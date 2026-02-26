@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyGroup, getPropertyById } from '../../services/api';
+import { getMyGroup } from '../../services/api';
 import './RoommateGroup.css';
 
 function RoommateGroup() {
     const { user } = useAuth();
     const [group, setGroup] = useState(null);
-    const [property, setProperty] = useState(null);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
@@ -16,12 +15,6 @@ function RoommateGroup() {
             const groupRes = await getMyGroup();
             if (groupRes.success && groupRes.grupo) {
                 setGroup(groupRes.grupo);
-                if (groupRes.grupo.id_propiedad) {
-                    const propRes = await getPropertyById(groupRes.grupo.id_propiedad);
-                    if (propRes.success) {
-                        setProperty(propRes.propiedad || propRes);
-                    }
-                }
             }
             setLoading(false);
         };
@@ -45,8 +38,8 @@ function RoommateGroup() {
                     <div className="no-group">
                         <div className="no-group-icon">Sin grupo</div>
                         <h2>Aún no perteneces a un grupo</h2>
-                        <p>Acepta un match y forma tu grupo de roommates para acceder a las herramientas de convivencia.</p>
-                        <Link to="/tenant/matches" className="btn btn-primary btn-lg">Ver Matches →</Link>
+                        <p>Cuando un arrendador te confirme como inquilino, serás agregado automáticamente al grupo de la propiedad.</p>
+                        <Link to="/tenant/properties" className="btn btn-primary btn-lg">Ver Propiedades →</Link>
                     </div>
                 </div>
             </div>
@@ -54,6 +47,7 @@ function RoommateGroup() {
     }
 
     const members = group.miembros || [];
+    const property = group.propiedad || null;
     const propTitle = property?.titulo || property?.title || '';
     const propAddress = property?.direccion || property?.address || '';
     const propCity = property?.ciudad || property?.city || '';
@@ -78,18 +72,17 @@ function RoommateGroup() {
                         <h2 className="group-card-title">Miembros ({members.length})</h2>
                         <div className="members-list">
                             {members.map((member) => {
-                                const nombre = member.nombre || '';
-                                const apellido = member.apellido || '';
-                                const initials = (nombre[0] || '') + (apellido[0] || '');
-                                const memberId = member.id_usuario;
+                                const memberId = member.id;
+                                const fullName = member.nombre || '';
+                                const initials = member.avatar || (fullName[0] || '??');
                                 return (
                                     <div key={memberId} className="member-card">
-                                        <div className="avatar avatar-lg">{initials.toUpperCase()}</div>
+                                        <div className="avatar avatar-lg">{initials}</div>
                                         <div className="member-info">
                                             <h3 className="member-name">
-                                                {nombre} {apellido} {memberId === user?.id && <span className="you-badge">(Tú)</span>}
+                                                {fullName} {memberId === user?.id && <span className="you-badge">(Tú)</span>}
                                             </h3>
-                                            <p className="member-detail">{member.email || ''}</p>
+                                            <p className="member-detail">{member.rol === 'creador' ? 'Creador del grupo' : 'Miembro'}</p>
                                         </div>
                                     </div>
                                 );

@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyProperties, getImageUrl } from '../../services/api';
+import { getMyProperties, getImageUrl, getInterestedCount } from '../../services/api';
 import './LandlordDashboard.css';
 
 function LandlordDashboard() {
     const { user } = useAuth();
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [interestedCount, setInterestedCount] = useState(0);
 
     useEffect(() => {
         const fetchProperties = async () => {
@@ -19,6 +20,14 @@ function LandlordDashboard() {
             setLoading(false);
         };
         fetchProperties();
+        // Fetch interested tenants count
+        const fetchCount = async () => {
+            const result = await getInterestedCount();
+            if (result.success) {
+                setInterestedCount(result.total || 0);
+            }
+        };
+        fetchCount();
     }, []);
 
     const availableRooms = properties.reduce((sum, p) => sum + (p.habitaciones_disponibles || p.availableRooms || 0), 0);
@@ -53,7 +62,7 @@ function LandlordDashboard() {
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Int.</div>
-                        <div className="stat-value">0</div>
+                        <div className="stat-value">{interestedCount}</div>
                         <div className="stat-label">Tenants Interesados</div>
                     </div>
                     <div className="stat-card">
@@ -86,7 +95,7 @@ function LandlordDashboard() {
                                             <div className="landlord-property-image">
                                                 {images.length > 0
                                                     ? <img src={getImageUrl(images[0])} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
-                                                    : '🏠'
+                                                    : <img src="/house-icon.png" alt="propiedad" style={{ width: 48, height: 48, objectFit: 'contain' }} />
                                                 }
                                             </div>
                                             <div className="landlord-property-info">

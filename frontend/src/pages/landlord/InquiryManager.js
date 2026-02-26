@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getReceivedInquiries, acceptInquiry, rejectInquiry, getImageUrl } from '../../services/api';
+import { getReceivedInquiries, acceptInquiry, rejectInquiry, confirmInquiry, declineInquiry, getImageUrl } from '../../services/api';
 import './InquiryManager.css';
 
 function InquiryManager() {
@@ -40,6 +40,24 @@ function InquiryManager() {
         }
     };
 
+    const handleConfirm = async (id) => {
+        const result = await confirmInquiry(id);
+        if (result.success) {
+            setInquiries(prev => prev.map(s =>
+                s.id_solicitud === id ? { ...s, estado: 'confirmada' } : s
+            ));
+        }
+    };
+
+    const handleDecline = async (id) => {
+        const result = await declineInquiry(id);
+        if (result.success) {
+            setInquiries(prev => prev.map(s =>
+                s.id_solicitud === id ? { ...s, estado: 'declinada' } : s
+            ));
+        }
+    };
+
     const filtered = filter === 'todas'
         ? inquiries
         : inquiries.filter(s => s.estado === filter);
@@ -61,13 +79,13 @@ function InquiryManager() {
                 </div>
 
                 <div className="inquiry-filters animate-fade-in-up">
-                    {['todas', 'pendiente', 'aceptada', 'rechazada'].map(f => (
+                    {['todas', 'pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada'].map(f => (
                         <button
                             key={f}
                             className={`filter-btn ${filter === f ? 'filter-btn--active' : ''}`}
                             onClick={() => setFilter(f)}
                         >
-                            {f === 'todas' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1)}s
+                            {f === 'todas' ? 'Todas' : f.charAt(0).toUpperCase() + f.slice(1) + (f.endsWith('s') ? '' : 's')}
                             {f === 'pendiente' && pendingCount > 0 && (
                                 <span className="filter-badge">{pendingCount}</span>
                             )}
@@ -96,14 +114,14 @@ function InquiryManager() {
                                     <div className="inquiry-card-image">
                                         {images.length > 0
                                             ? <img src={getImageUrl(images[0])} alt={sol.titulo_propiedad} />
-                                            : <span className="inquiry-card-placeholder">🏠</span>
+                                            : <img src="/house-icon.png" alt="propiedad" className="inquiry-card-placeholder" style={{ width: 48, height: 48, objectFit: 'contain' }} />
                                         }
                                     </div>
                                     <div className="inquiry-card-body">
                                         <div className="inquiry-card-top">
                                             <h3 className="inquiry-card-title">{sol.titulo_propiedad}</h3>
-                                            <span className={`badge badge-${sol.estado === 'pendiente' ? 'warning' : sol.estado === 'aceptada' ? 'success' : 'error'}`}>
-                                                {sol.estado === 'pendiente' ? '⏳ Pendiente' : sol.estado === 'aceptada' ? '✓ Aceptada' : '✕ Rechazada'}
+                                            <span className={`badge badge-${sol.estado === 'pendiente' ? 'warning' : sol.estado === 'aceptada' ? 'success' : sol.estado === 'confirmada' ? 'success' : 'error'}`}>
+                                                {sol.estado === 'pendiente' ? '⏳ Pendiente' : sol.estado === 'aceptada' ? '✓ Aceptada' : sol.estado === 'confirmada' ? '✅ Confirmada' : sol.estado === 'declinada' ? '✕ Declinada' : '✕ Rechazada'}
                                             </span>
                                         </div>
                                         <p className="inquiry-card-location">{sol.ciudad}</p>
@@ -133,9 +151,17 @@ function InquiryManager() {
                                             </>
                                         )}
                                         {sol.estado === 'aceptada' && (
-                                            <button className="btn btn-accent btn-sm" onClick={() => navigate(`/chat/${sol.id_solicitud}`)}>
-                                                💬 Ir al Chat
-                                            </button>
+                                            <>
+                                                <button className="btn btn-accent btn-sm" onClick={() => navigate(`/chat/${sol.id_solicitud}`)}>
+                                                    💬 Ir al Chat
+                                                </button>
+                                                <button className="btn btn-primary btn-sm" onClick={() => handleConfirm(sol.id_solicitud)}>
+                                                    ✓ Aceptar Inquilino
+                                                </button>
+                                                <button className="btn btn-danger btn-sm" onClick={() => handleDecline(sol.id_solicitud)}>
+                                                    ✕ Rechazar Inquilino
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 </div>

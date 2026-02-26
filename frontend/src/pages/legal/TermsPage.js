@@ -103,7 +103,7 @@ function TermsPage() {
                     {/* 4 */}
                     <div className="legal-card" id="t4">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🏠</div>
+                            <div className="legal-card-icon"><img src="/house-icon.png" alt="propiedad" style={{ width: 32, height: 32, objectFit: 'contain' }} /></div>
                             <div>
                                 <h2 className="legal-card-title">4. Publicaciones y Propiedades</h2>
                                 <p className="legal-card-subtitle">Responsabilidades de los arrendadores</p>

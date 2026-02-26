@@ -18,7 +18,7 @@ function MatesBoard() {
             const groupRes = await getMyGroup();
             if (groupRes.success && groupRes.grupo) {
                 setGroup(groupRes.grupo);
-                const postsRes = await getBoardPosts(groupRes.grupo.id_grupo);
+                const postsRes = await getBoardPosts(groupRes.grupo.id);
                 if (postsRes.success) {
                     setPosts(postsRes.publicaciones || []);
                 }
@@ -32,7 +32,7 @@ function MatesBoard() {
         e.preventDefault();
         if (!group) return;
         const result = await createBoardPost({
-            id_grupo: group.id_grupo,
+            id_grupo: group.id,
             titulo: newPost.title,
             contenido: newPost.content,
             tipo: newPost.type,
@@ -49,7 +49,7 @@ function MatesBoard() {
         if (!replyText[postId]?.trim()) return;
         const result = await replyToBoardPost(postId, replyText[postId]);
         if (result.success && group) {
-            const postsRes = await getBoardPosts(group.id_grupo);
+            const postsRes = await getBoardPosts(group.id);
             if (postsRes.success) setPosts(postsRes.publicaciones || []);
             setReplyText((prev) => ({ ...prev, [postId]: '' }));
         }

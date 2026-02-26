@@ -8,7 +8,7 @@ function PropertyDetail() {
     const navigate = useNavigate();
     const [property, setProperty] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [inquiryState, setInquiryState] = useState(null); // null | 'pendiente' | 'aceptada' | 'rechazada'
+    const [inquiryState, setInquiryState] = useState(null); // null | 'pendiente' | 'aceptada' | 'rechazada' | 'confirmada' | 'declinada'
     const [inquirySolicitudId, setInquirySolicitudId] = useState(null);
     const [sending, setSending] = useState(false);
     const [activeImg, setActiveImg] = useState(0);
@@ -122,6 +122,10 @@ function PropertyDetail() {
                 return { label: '💬 Ir al Chat', className: 'btn btn-success btn-lg', disabled: false };
             case 'rechazada':
                 return { label: '✕ Solicitud Rechazada', className: 'btn btn-danger btn-lg', disabled: true };
+            case 'confirmada':
+                return { label: '✅ Confirmado como Inquilino', className: 'btn btn-success btn-lg', disabled: true };
+            case 'declinada':
+                return { label: '✕ Solicitud Declinada', className: 'btn btn-danger btn-lg', disabled: true };
             default:
                 return { label: '📩 Solicitar Informes', className: 'btn btn-primary btn-lg', disabled: false };
         }
@@ -292,6 +296,16 @@ function PropertyDetail() {
                                 {inquiryState === 'rechazada' && (
                                     <p className="interest-note animate-fade-in" style={{ color: 'var(--danger, #ef4444)' }}>
                                         Lo sentimos, el arrendador rechazó tu solicitud.
+                                    </p>
+                                )}
+                                {inquiryState === 'confirmada' && (
+                                    <p className="interest-note animate-fade-in" style={{ color: 'var(--success, #22c55e)' }}>
+                                        ¡Felicidades! Has sido confirmado como inquilino. Revisa tu grupo de roommates.
+                                    </p>
+                                )}
+                                {inquiryState === 'declinada' && (
+                                    <p className="interest-note animate-fade-in" style={{ color: 'var(--danger, #ef4444)' }}>
+                                        El arrendador ha declinado tu solicitud después de la revisión. No es posible volver a solicitar.
                                     </p>
                                 )}
                             </div>

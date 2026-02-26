@@ -1,6 +1,6 @@
 // Use the current browser hostname so the app works from any device on the same network
 // e.g. from PC: http://localhost:5000/api  |  from phone: http://192.168.1.X:5000/api
-const BACKEND_URL = `http://${window.location.hostname}:5001`;
+const BACKEND_URL = `http://${window.location.hostname}:5000`;
 const API_URL = `${BACKEND_URL}/api`;
 
 // Helper: build full URL for images stored on the backend
@@ -454,6 +454,29 @@ export const acceptInquiry = async (id) => {
 export const rejectInquiry = async (id) => {
     return await apiRequest(`${API_URL}/solicitudes/${id}/rechazar`, {
         method: 'PUT',
+        headers: authHeaders(),
+    });
+};
+
+// Confirmar inquilino (decisión final positiva tras chatear)
+export const confirmInquiry = async (id) => {
+    return await apiRequest(`${API_URL}/solicitudes/${id}/confirmar`, {
+        method: 'PUT',
+        headers: authHeaders(),
+    });
+};
+
+// Declinar inquilino (decisión final negativa tras chatear)
+export const declineInquiry = async (id) => {
+    return await apiRequest(`${API_URL}/solicitudes/${id}/declinar`, {
+        method: 'PUT',
+        headers: authHeaders(),
+    });
+};
+
+// Obtener conteo de tenants interesados (landlord dashboard)
+export const getInterestedCount = async () => {
+    return await apiRequest(`${API_URL}/solicitudes/contador`, {
         headers: authHeaders(),
     });
 };

@@ -22,7 +22,7 @@ const solicitudesRoutes = require('./routes/solicitudes');
 const chatRoutes = require('./routes/chat');
 
 const app = express();
-const PORT = process.env.PORT || 5001;
+const PORT = process.env.PORT || 5000;
 
 // Crear servidor HTTP para usar con Socket.io
 const server = http.createServer(app);
