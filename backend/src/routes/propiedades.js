@@ -186,7 +186,7 @@ router.post('/', verificarToken, verificarRol('landlord'), upload.array('imagene
         const {
             titulo, descripcion, direccion, ciudad, estado,
             precio, habitaciones, banos, habitaciones_disponibles,
-            area, amenidades, reglas, lugares_cercanos
+            area, amenidades, reglas, lugares_cercanos, latitud, longitud
         } = req.body;
 
         // Validar campos obligatorios
@@ -217,15 +217,16 @@ router.post('/', verificarToken, verificarRol('landlord'), upload.array('imagene
             `INSERT INTO propiedades
         (id_propiedad, id_landlord, titulo, descripcion, direccion, ciudad, estado,
          precio, habitaciones, banos, habitaciones_disponibles, area,
-         amenidades, reglas, imagenes, lugares_cercanos)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         amenidades, reglas, imagenes, lugares_cercanos, latitud, longitud)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
                 id_propiedad, req.usuario.id, titulo, descripcion || null,
                 direccion || null, ciudad || null, estado || null,
                 parseFloat(precio), parseInt(habitaciones), parseInt(banos),
                 parseInt(habitaciones_disponibles), area ? parseFloat(area) : null,
                 JSON.stringify(amenidadesArr), JSON.stringify(reglasArr),
-                JSON.stringify(imagenes), JSON.stringify(lugaresArr)
+                JSON.stringify(imagenes), JSON.stringify(lugaresArr),
+                latitud ? parseFloat(latitud) : null, longitud ? parseFloat(longitud) : null
             ]
         );
 
@@ -269,7 +270,8 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
         const {
             titulo, descripcion, direccion, ciudad, estado,
             precio, habitaciones, banos, habitaciones_disponibles,
-            area, amenidades, reglas, lugares_cercanos, disponible, destacada
+            area, amenidades, reglas, lugares_cercanos, disponible, destacada,
+            latitud, longitud
         } = req.body;
 
         // Procesar nuevas imagenes si se subieron
@@ -297,7 +299,7 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
         titulo = ?, descripcion = ?, direccion = ?, ciudad = ?, estado = ?,
         precio = ?, habitaciones = ?, banos = ?, habitaciones_disponibles = ?,
         area = ?, amenidades = ?, reglas = ?, imagenes = ?, lugares_cercanos = ?,
-        disponible = ?, destacada = ?
+        disponible = ?, destacada = ?, latitud = ?, longitud = ?
        WHERE id_propiedad = ?`,
             [
                 titulo || existing[0].titulo,
@@ -316,6 +318,8 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
                 JSON.stringify(lugaresArr),
                 disponible !== undefined ? disponible : existing[0].disponible,
                 destacada !== undefined ? destacada : existing[0].destacada,
+                latitud !== undefined ? (latitud ? parseFloat(latitud) : null) : existing[0].latitud,
+                longitud !== undefined ? (longitud ? parseFloat(longitud) : null) : existing[0].longitud,
                 id
             ]
         );

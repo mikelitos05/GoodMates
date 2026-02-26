@@ -87,6 +87,8 @@ const initDatabase = async () => {
         reglas JSON,
         imagenes JSON,
         lugares_cercanos JSON,
+        latitud DECIMAL(10,7),
+        longitud DECIMAL(10,7),
         disponible BOOLEAN DEFAULT TRUE,
         destacada BOOLEAN DEFAULT FALSE,
         fecha_publicacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -99,6 +101,18 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla propiedades verificada');
+
+    // Agregar columnas de coordenadas si no existen (para bases existentes)
+    try {
+      await pool.query('ALTER TABLE propiedades ADD COLUMN latitud DECIMAL(10,7)');
+      await pool.query('ALTER TABLE propiedades ADD COLUMN longitud DECIMAL(10,7)');
+      console.log('Columnas latitud/longitud agregadas a propiedades');
+    } catch (e) {
+      // Las columnas ya existen, ignorar el error
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando columnas de coordenadas:', e.message);
+      }
+    }
 
     // Tabla de matches (compatibilidad entre tenants)
     await pool.query(`

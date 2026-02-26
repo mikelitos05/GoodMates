@@ -129,15 +129,24 @@ export const getMyProperties = async () => {
     });
 };
 
+// Helper: append propertyData to FormData safely (skip null/undefined, stringify arrays)
+const appendPropertyData = (formData, propertyData) => {
+    Object.keys(propertyData).forEach(key => {
+        const val = propertyData[key];
+        if (val === null || val === undefined) return; // skip nulls (avoid "null" string)
+        if (Array.isArray(val)) {
+            formData.append(key, val.join(','));
+        } else {
+            formData.append(key, val);
+        }
+    });
+};
+
 // Crear una propiedad con imagenes
 export const createProperty = async (propertyData, imageFiles = []) => {
     try {
         const formData = new FormData();
-        // Agregar campos de texto
-        Object.keys(propertyData).forEach(key => {
-            formData.append(key, propertyData[key]);
-        });
-        // Agregar imagenes
+        appendPropertyData(formData, propertyData);
         imageFiles.forEach(file => {
             formData.append('imagenes', file);
         });
@@ -158,9 +167,7 @@ export const createProperty = async (propertyData, imageFiles = []) => {
 export const updateProperty = async (id, propertyData, imageFiles = []) => {
     try {
         const formData = new FormData();
-        Object.keys(propertyData).forEach(key => {
-            formData.append(key, propertyData[key]);
-        });
+        appendPropertyData(formData, propertyData);
         imageFiles.forEach(file => {
             formData.append('imagenes', file);
         });

@@ -42,7 +42,139 @@
     border-top: 1px solid var(--neutral-100);
 }
 
+/* ============ MAP PICKER ============ */
+.map-picker-container {
+    position: relative;
+    height: 350px;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    border: 2px solid var(--neutral-200);
+    cursor: crosshair;
+    transition: border-color var(--transition-fast);
+}
 
+.map-picker-container:hover {
+    border-color: var(--primary-400);
+}
+
+.map-picker-reset {
+    position: absolute;
+    top: var(--space-3);
+    right: var(--space-3);
+    z-index: 1000;
+    padding: var(--space-2) var(--space-4);
+    background: rgba(239, 68, 68, 0.9);
+    color: white;
+    border: none;
+    border-radius: var(--radius-full);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+    transition: all var(--transition-fast);
+}
+
+.map-picker-reset:hover {
+    background: rgba(220, 38, 38, 1);
+    transform: scale(1.05);
+}
+
+.form-label-hint {
+    font-weight: 400;
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+    margin-left: var(--space-2);
+}
+
+/* ============ IMAGE UPLOAD ============ */
+.image-upload-btn {
+    width: 100%;
+    padding: var(--space-4);
+    border: 2px dashed var(--neutral-300);
+    border-radius: var(--radius-lg);
+    color: var(--text-muted);
+    font-weight: 500;
+    transition: all var(--transition-fast);
+}
+
+.image-upload-btn:hover {
+    border-color: var(--primary-400);
+    color: var(--primary-600);
+    background: rgba(99, 102, 241, 0.04);
+}
+
+.image-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: var(--space-3);
+    margin-top: var(--space-3);
+}
+
+.image-preview-item {
+    position: relative;
+    aspect-ratio: 4 / 3;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    border: 2px solid var(--neutral-200);
+    transition: all var(--transition-fast);
+}
+
+.image-preview-item:hover {
+    border-color: var(--primary-300);
+    box-shadow: var(--shadow-md);
+}
+
+.image-preview-item img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.image-preview-new {
+    border-color: var(--primary-300);
+    border-style: dashed;
+}
+
+.image-preview-badge {
+    position: absolute;
+    bottom: var(--space-1);
+    left: var(--space-1);
+    background: rgba(99, 102, 241, 0.9);
+    color: white;
+    padding: 1px 8px;
+    border-radius: var(--radius-full);
+    font-size: 10px;
+    font-weight: 700;
+}
+
+.image-preview-remove {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: rgba(239, 68, 68, 0.85);
+    color: white;
+    border-radius: 50%;
+    font-size: 11px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity var(--transition-fast);
+}
+
+.image-preview-item:hover .image-preview-remove {
+    opacity: 1;
+}
+
+.image-preview-remove:hover {
+    background: rgba(220, 38, 38, 1);
+}
+
+/* ============ PROPERTY LIST ============ */
 .properties-list {
     display: flex;
     flex-direction: column;
@@ -74,6 +206,7 @@
     justify-content: center;
     font-size: 2rem;
     flex-shrink: 0;
+    overflow: hidden;
 }
 
 .manager-property-content {
@@ -85,6 +218,7 @@
     align-items: center;
     gap: var(--space-3);
     margin-bottom: var(--space-1);
+    flex-wrap: wrap;
 }
 
 .manager-property-title {
@@ -121,7 +255,7 @@
     flex-shrink: 0;
 }
 
-/* Chips for amenities and rules */
+/* ============ CHIPS ============ */
 .chips-container {
     display: flex;
     flex-wrap: wrap;
@@ -177,6 +311,7 @@
     color: white;
 }
 
+/* ============ RESPONSIVE ============ */
 @media (max-width: 768px) {
     .manager-property-card {
         flex-direction: column;
@@ -189,5 +324,9 @@
 
     .property-form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .map-picker-container {
+        height: 280px;
     }
 }
