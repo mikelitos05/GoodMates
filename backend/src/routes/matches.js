@@ -67,9 +67,13 @@ router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, r
 
         // Verificar match requests existentes del usuario actual
         const [matchesExistentes] = await pool.query(
-            `SELECT id_match, id_usuario_1, id_usuario_2, estado, porcentaje_compatibilidad
-             FROM matches
-             WHERE id_usuario_1 = ? OR id_usuario_2 = ?`,
+            `SELECT m.id_match, m.id_usuario_1, m.id_usuario_2, m.estado, m.porcentaje_compatibilidad,
+                    cm.id_match AS id_chat_match
+             FROM matches m
+             LEFT JOIN conversaciones_match cm
+               ON cm.id_match = m.id_match
+              AND cm.activa = TRUE
+             WHERE m.id_usuario_1 = ? OR m.id_usuario_2 = ?`,
             [req.usuario.id, req.usuario.id]
         );
 
@@ -80,6 +84,7 @@ router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, r
                 id_match: m.id_match,
                 estado: m.estado,
                 soyIniciador: m.id_usuario_1 === req.usuario.id,
+                id_chat_match: m.id_chat_match || null,
             };
         }
 
@@ -152,7 +157,8 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
               r1.calificacion_promedio AS calificacion_promedio_1,
               r1.total_calificaciones AS total_calificaciones_1,
               r2.calificacion_promedio AS calificacion_promedio_2,
-              r2.total_calificaciones AS total_calificaciones_2
+              r2.total_calificaciones AS total_calificaciones_2,
+              cm.id_match AS id_chat_match
        FROM matches m
        JOIN usuarios u1 ON m.id_usuario_1 = u1.id_usuario
        JOIN usuarios u2 ON m.id_usuario_2 = u2.id_usuario
@@ -172,6 +178,9 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
           FROM calificaciones
           GROUP BY id_usuario_calificado
        ) r2 ON r2.id_usuario_calificado = m.id_usuario_2
+       LEFT JOIN conversaciones_match cm
+         ON cm.id_match = m.id_match
+        AND cm.activa = TRUE
        WHERE m.id_usuario_1 = ? OR m.id_usuario_2 = ?
        ORDER BY m.porcentaje_compatibilidad DESC`,
             [req.usuario.id, req.usuario.id]
@@ -203,6 +212,7 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
                 porcentaje_compatibilidad: porcentaje,
                 status: estado,
                 estado,
+                id_chat_match: m.id_chat_match || null,
                 usuario_nombre: nombre,
                 ciudad,
                 edad,
@@ -317,38 +327,20 @@ router.put('/:id/aceptar', verificarToken, verificarRol('tenant'), async (req, r
             'UPDATE matches SET estado = ? WHERE id_match = ?',
             ['aceptado', id]
         );
-
-        // Crear una solicitud de chat entre los dos usuarios
-        // Buscar una propiedad del grupo del usuario que acepta para crear el chat
-        const [grupo] = await pool.query(
-            `SELECT g.id_propiedad, pr.id_landlord
-             FROM miembros_grupo mg
-             JOIN grupos_roommates g ON mg.id_grupo = g.id_grupo
-             LEFT JOIN propiedades pr ON g.id_propiedad = pr.id_propiedad
-             WHERE mg.id_usuario = ? AND g.activo = TRUE`,
-            [req.usuario.id]
+        await pool.query(
+            `INSERT INTO conversaciones_match (id_match, id_usuario_1, id_usuario_2, activa)
+             VALUES (?, ?, ?, TRUE)
+             ON DUPLICATE KEY UPDATE
+                activa = TRUE,
+                id_usuario_1 = VALUES(id_usuario_1),
+                id_usuario_2 = VALUES(id_usuario_2)`,
+            [id, matchData.id_usuario_1, matchData.id_usuario_2]
         );
-
-        if (grupo.length > 0 && grupo[0].id_propiedad) {
-            // Crear solicitud aceptada para habilitar chat
-            const id_solicitud = uuidv4();
-            try {
-                await pool.query(
-                    `INSERT INTO solicitudes_informes (id_solicitud, id_tenant, id_propiedad, id_landlord, estado, mensaje_tenant)
-                     VALUES (?, ?, ?, ?, 'aceptada', ?)`,
-                    [id_solicitud, matchData.id_usuario_1, grupo[0].id_propiedad, grupo[0].id_landlord || matchData.id_usuario_2, 'Match aceptado - chat habilitado']
-                );
-            } catch (e) {
-                // Si ya existe una solicitud para este tenant+propiedad, ignorar
-                if (!e.message.includes('Duplicate entry')) {
-                    console.error('Error creando solicitud de chat:', e);
-                }
-            }
-        }
 
         res.json({
             success: true,
             message: 'Match aceptado exitosamente',
+            id_chat_match: id,
         });
 
     } catch (error) {
@@ -384,6 +376,35 @@ router.put('/:id/rechazar', verificarToken, verificarRol('tenant'), async (req, 
     } catch (error) {
         console.error('Error rechazando match:', error);
         res.status(500).json({ success: false, message: 'Error interno del servidor' });
+    }
+});
+
+// ─── Desvincular/eliminar un match existente ───
+router.delete('/:id/desvincular', verificarToken, verificarRol('tenant'), async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const [match] = await pool.query(
+            'SELECT id_match, id_usuario_1, id_usuario_2 FROM matches WHERE id_match = ? AND (id_usuario_1 = ? OR id_usuario_2 = ?)',
+            [id, req.usuario.id, req.usuario.id]
+        );
+
+        if (match.length === 0) {
+            return res.status(404).json({ success: false, message: 'Match no encontrado' });
+        }
+
+        await pool.query('DELETE FROM matches WHERE id_match = ?', [id]);
+
+        return res.json({
+            success: true,
+            message: 'Match desvinculado exitosamente',
+        });
+    } catch (error) {
+        console.error('Error desvinculando match:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
     }
 });
 

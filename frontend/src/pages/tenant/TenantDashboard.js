@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRatings, getMatches, getMyGroup } from '../../services/api';
+import { getUserRatings, getMatches, getMyGroup, getTenantPendingLandlordRatings, rateRoommate } from '../../services/api';
+import RatingModal from '../../components/shared/RatingModal';
 import './TenantDashboard.css';
 
 function TenantDashboard() {
@@ -9,6 +10,9 @@ function TenantDashboard() {
     const [reputacion, setReputacion] = useState(null);
     const [matches, setMatches] = useState([]);
     const [group, setGroup] = useState(null);
+    const [pendingLandlordRatings, setPendingLandlordRatings] = useState([]);
+    const [ratingTargetPendingLandlord, setRatingTargetPendingLandlord] = useState(null);
+    const [submittingPendingRating, setSubmittingPendingRating] = useState(false);
 
     const normalizeMatch = (m) => ({
         ...m,
@@ -33,11 +37,46 @@ function TenantDashboard() {
                 setMatches((matchesRes.matches || []).map(normalizeMatch));
             }
             if (groupRes.success) setGroup(groupRes.grupo || null);
+
+            const tenantPendingRes = await getTenantPendingLandlordRatings();
+            if (tenantPendingRes.success) {
+                setPendingLandlordRatings(tenantPendingRes.pendientes || []);
+            }
         };
         fetchData();
     }, [user?.id]);
 
     const pendingMatches = matches.filter((m) => m.estado === 'pendiente');
+
+    const refreshPendingLandlordRatings = async () => {
+        const tenantPendingRes = await getTenantPendingLandlordRatings();
+        if (tenantPendingRes.success) {
+            setPendingLandlordRatings(tenantPendingRes.pendientes || []);
+            return tenantPendingRes.pendientes || [];
+        }
+        return [];
+    };
+
+    const handleRatePendingLandlord = async ({ puntuacion, comentario }) => {
+        if (!ratingTargetPendingLandlord?.id_pendiente) return false;
+
+        setSubmittingPendingRating(true);
+        const result = await rateRoommate({
+            id_pendiente: ratingTargetPendingLandlord.id_pendiente,
+            puntuacion,
+            comentario,
+        });
+        setSubmittingPendingRating(false);
+
+        if (!result.success) {
+            alert(result.error || 'No se pudo registrar la calificación.');
+            return false;
+        }
+
+        setRatingTargetPendingLandlord(null);
+        await refreshPendingLandlordRatings();
+        return true;
+    };
 
     return (
         <div className="dashboard-page">
@@ -74,11 +113,11 @@ function TenantDashboard() {
                         <div className="stat-value">{group?.miembros?.length || 0}</div>
                         <div className="stat-label">Roommates</div>
                     </div>
-                    <div className="stat-card">
+                    <Link to="/tenant/profile?section=reputation" className="stat-card stat-card-link">
                         <div className="stat-icon">Rep.</div>
                         <div className="stat-value">{reputacion?.promedio_general ?? 'N/A'}</div>
                         <div className="stat-label">Reputación{reputacion?.total_calificaciones ? ` (${reputacion.total_calificaciones})` : ''}</div>
-                    </div>
+                    </Link>
                 </div>
 
                 <div className="dashboard-grid animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
@@ -127,6 +166,45 @@ function TenantDashboard() {
                             <p className="empty-state">No tienes tareas pendientes</p>
                         </div>
                     </div>
+
+                    <div className="dashboard-card">
+                        <div className="dashboard-card-header">
+                            <h2 className="dashboard-card-title">Mates Board</h2>
+                            <Link to="/roommate/board" className="btn btn-ghost btn-sm">Ver Mates Board →</Link>
+                        </div>
+                        <div className="dashboard-card-body">
+                            <p className="empty-state">Consulta avisos y conversación de tu grupo.</p>
+                        </div>
+                    </div>
+
+                    <div className="dashboard-card">
+                        <div className="dashboard-card-header">
+                            <h2 className="dashboard-card-title">Calificaciones a Arrendador</h2>
+                        </div>
+                        <div className="dashboard-card-body">
+                            {pendingLandlordRatings.length === 0 ? (
+                                <p className="empty-state">Sin pendientes de calificación.</p>
+                            ) : (
+                                <div className="match-preview-list">
+                                    {pendingLandlordRatings.slice(0, 3).map((pending) => (
+                                        <div key={pending.id_pendiente} className="match-preview-item">
+                                            <div className="avatar">{(pending.landlord_nombre || 'AR').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}</div>
+                                            <div className="match-preview-info">
+                                                <p className="match-preview-name">{pending.landlord_nombre || 'Arrendador'}</p>
+                                                <p className="match-preview-detail">{pending.propiedad_titulo || 'Propiedad'}</p>
+                                            </div>
+                                            <button
+                                                className="btn btn-primary btn-sm"
+                                                onClick={() => setRatingTargetPendingLandlord(pending)}
+                                            >
+                                                Calificar
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
 
@@ -149,6 +227,18 @@ function TenantDashboard() {
                     </Link>
                 </div>
             </div>
+
+            <RatingModal
+                isOpen={!!ratingTargetPendingLandlord}
+                title="Calificar arrendador"
+                subjectName={ratingTargetPendingLandlord?.landlord_nombre || 'arrendador'}
+                submitting={submittingPendingRating}
+                submitLabel="Guardar calificación"
+                onClose={() => {
+                    if (!submittingPendingRating) setRatingTargetPendingLandlord(null);
+                }}
+                onSubmit={handleRatePendingLandlord}
+            />
         </div>
     );
 }

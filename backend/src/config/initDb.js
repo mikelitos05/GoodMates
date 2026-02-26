@@ -384,6 +384,29 @@ const initDatabase = async () => {
     `);
     console.log('Tabla calificaciones_pendientes verificada');
 
+    // Tabla de pendientes para que el tenant califique al arrendador tras egreso/remocion.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calificaciones_pendientes_tenant (
+        id_pendiente CHAR(36) PRIMARY KEY,
+        id_tenant CHAR(36) NOT NULL,
+        id_landlord CHAR(36) NOT NULL,
+        id_propiedad CHAR(36) NOT NULL,
+        motivo ENUM('salida_tenant', 'remocion_landlord') NOT NULL DEFAULT 'salida_tenant',
+        estado ENUM('pendiente', 'completada', 'omitida') NOT NULL DEFAULT 'pendiente',
+        motivo_omision TEXT,
+        fecha_evento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_resolucion TIMESTAMP NULL,
+        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_tenant) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_landlord) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_propiedad) REFERENCES propiedades(id_propiedad) ON DELETE CASCADE,
+        INDEX idx_tenant_estado (id_tenant, estado),
+        INDEX idx_landlord (id_landlord),
+        INDEX idx_propiedad (id_propiedad)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla calificaciones_pendientes_tenant verificada');
+
     // Tabla de calificaciones al grupo de convivencia.
     await pool.query(`
       CREATE TABLE IF NOT EXISTS calificaciones_grupo (
@@ -433,7 +456,7 @@ const initDatabase = async () => {
         id_tenant CHAR(36) NOT NULL,
         id_propiedad CHAR(36) NOT NULL,
         id_landlord CHAR(36) NOT NULL,
-        estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada', 'traslado_pendiente') DEFAULT 'pendiente',
+        estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada', 'traslado_pendiente', 'egresada') DEFAULT 'pendiente',
         mensaje_tenant TEXT,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -448,9 +471,9 @@ const initDatabase = async () => {
     `);
     console.log('Tabla solicitudes_informes verificada');
 
-    // Actualizar enum de estado en solicitudes_informes para incluir traslado_pendiente.
+    // Actualizar enum de estado en solicitudes_informes para incluir estados de traslado y egreso.
     try {
-      await pool.query(`ALTER TABLE solicitudes_informes MODIFY COLUMN estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada', 'traslado_pendiente') DEFAULT 'pendiente'`);
+      await pool.query(`ALTER TABLE solicitudes_informes MODIFY COLUMN estado ENUM('pendiente', 'aceptada', 'rechazada', 'confirmada', 'declinada', 'traslado_pendiente', 'egresada') DEFAULT 'pendiente'`);
     } catch (e) {
       // Ignorar si ya tiene el enum correcto
     }
@@ -470,6 +493,41 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla mensajes_chat verificada');
+
+    // Tabla de conversaciones de match tenant-tenant.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS conversaciones_match (
+        id_match CHAR(36) PRIMARY KEY,
+        id_usuario_1 CHAR(36) NOT NULL,
+        id_usuario_2 CHAR(36) NOT NULL,
+        activa BOOLEAN DEFAULT TRUE,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_match) REFERENCES matches(id_match) ON DELETE CASCADE,
+        FOREIGN KEY (id_usuario_1) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_usuario_2) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        INDEX idx_usuario_1 (id_usuario_1),
+        INDEX idx_usuario_2 (id_usuario_2),
+        INDEX idx_activa (activa)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla conversaciones_match verificada');
+
+    // Tabla de mensajes para chat de matches.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mensajes_match_chat (
+        id_mensaje CHAR(36) PRIMARY KEY,
+        id_match CHAR(36) NOT NULL,
+        id_emisor CHAR(36) NOT NULL,
+        contenido TEXT NOT NULL,
+        fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_match) REFERENCES conversaciones_match(id_match) ON DELETE CASCADE,
+        FOREIGN KEY (id_emisor) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        INDEX idx_match (id_match),
+        INDEX idx_emisor (id_emisor)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla mensajes_match_chat verificada');
 
     console.log('Base de datos inicializada correctamente: Todas las tablas verificadas');
   } catch (error) {

@@ -136,7 +136,12 @@ function App() {
               {/* Chat (accesible para tenant y landlord) */}
               <Route path="/chat/:idSolicitud" element={
                 <ProtectedRoute allowedRoles={['tenant', 'landlord']}>
-                  <ChatPage />
+                  <ChatPage mode="inquiry" />
+                </ProtectedRoute>
+              } />
+              <Route path="/chat/match/:idMatch" element={
+                <ProtectedRoute allowedRoles={['tenant']}>
+                  <ChatPage mode="match" />
                 </ProtectedRoute>
               } />
 

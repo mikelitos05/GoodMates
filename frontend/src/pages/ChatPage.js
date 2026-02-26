@@ -2,13 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
-import { getChatMessages, sendChatMessage } from '../services/api';
+import { getChatMessages, getMatchChatMessages, sendChatMessage, sendMatchChatMessage } from '../services/api';
 import './ChatPage.css';
 
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = `http://${window.location.hostname}:5001`;
 
-function ChatPage() {
-    const { idSolicitud } = useParams();
+function ChatPage({ mode = 'inquiry' }) {
+    const { idSolicitud, idMatch } = useParams();
     const { user } = useAuth();
     const [solicitud, setSolicitud] = useState(null);
     const [mensajes, setMensajes] = useState([]);
@@ -17,6 +17,8 @@ function ChatPage() {
     const [sending, setSending] = useState(false);
     const messagesEndRef = useRef(null);
     const socketRef = useRef(null);
+    const chatId = mode === 'match' ? idMatch : idSolicitud;
+    const roomId = mode === 'match' ? `match-${chatId}` : chatId;
 
     // Scroll to bottom
     const scrollToBottom = () => {
@@ -31,7 +33,9 @@ function ChatPage() {
     useEffect(() => {
         const fetchChat = async () => {
             setLoading(true);
-            const result = await getChatMessages(idSolicitud);
+            const result = mode === 'match'
+                ? await getMatchChatMessages(chatId)
+                : await getChatMessages(chatId);
             if (result.success) {
                 setSolicitud(result.solicitud);
                 setMensajes(result.mensajes || []);
@@ -39,7 +43,7 @@ function ChatPage() {
             setLoading(false);
         };
         fetchChat();
-    }, [idSolicitud]);
+    }, [chatId, mode]);
 
     // Socket.io for real-time
     useEffect(() => {
@@ -47,7 +51,7 @@ function ChatPage() {
         socketRef.current = socket;
 
         socket.on('connect', () => {
-            socket.emit('unirse-chat', idSolicitud);
+            socket.emit('unirse-chat', roomId);
             if (user?.id) {
                 socket.emit('unirse-usuario', user.id);
             }
@@ -64,14 +68,16 @@ function ChatPage() {
         return () => {
             socket.disconnect();
         };
-    }, [idSolicitud, user?.id]);
+    }, [roomId, user?.id]);
 
     const handleSend = async (e) => {
         e.preventDefault();
         if (!nuevoMensaje.trim() || sending) return;
 
         setSending(true);
-        const result = await sendChatMessage(idSolicitud, nuevoMensaje.trim());
+        const result = mode === 'match'
+            ? await sendMatchChatMessage(chatId, nuevoMensaje.trim())
+            : await sendChatMessage(chatId, nuevoMensaje.trim());
         if (result.success) {
             setMensajes(prev => {
                 if (prev.some(m => m.id_mensaje === result.mensaje.id_mensaje)) return prev;
@@ -105,11 +111,16 @@ function ChatPage() {
         );
     }
 
+    const isMatchChat = mode === 'match';
     const isLandlord = user?.id === solicitud.id_landlord;
-    const otherName = isLandlord
-        ? `${solicitud.tenant_nombre} ${solicitud.tenant_apellido}`
-        : `${solicitud.landlord_nombre} ${solicitud.landlord_apellido}`;
-    const backLink = isLandlord ? '/landlord/inquiries' : '/tenant/properties';
+    const otherName = isMatchChat
+        ? (user?.id === solicitud.id_usuario_1
+            ? `${solicitud.usuario_2_nombre} ${solicitud.usuario_2_apellido}`
+            : `${solicitud.usuario_1_nombre} ${solicitud.usuario_1_apellido}`)
+        : (isLandlord
+            ? `${solicitud.tenant_nombre} ${solicitud.tenant_apellido}`
+            : `${solicitud.landlord_nombre} ${solicitud.landlord_apellido}`);
+    const backLink = isMatchChat ? '/tenant/matches' : (isLandlord ? '/landlord/inquiries' : '/tenant/properties');
 
     return (
         <div className="chat-page">
@@ -132,7 +143,7 @@ function ChatPage() {
                 <div className="chat-messages">
                     {mensajes.length === 0 && (
                         <div className="chat-empty">
-                            <p>Inicia la conversación sobre la propiedad.</p>
+                            <p>{isMatchChat ? 'Inicia la conversación con tu match.' : 'Inicia la conversación sobre la propiedad.'}</p>
                         </div>
                     )}
                     {mensajes.map((msg) => {

@@ -36,6 +36,12 @@
     margin-bottom: var(--space-2);
 }
 
+.stat-card-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
 .dashboard-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;

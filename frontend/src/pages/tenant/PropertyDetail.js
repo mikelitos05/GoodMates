@@ -14,7 +14,7 @@ function PropertyDetail() {
     const navigate = useNavigate();
     const [property, setProperty] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [inquiryState, setInquiryState] = useState(null); // null | 'pendiente' | 'aceptada' | 'rechazada' | 'confirmada' | 'declinada'
+    const [inquiryState, setInquiryState] = useState(null); // null | 'pendiente' | 'aceptada' | 'rechazada' | 'confirmada' | 'declinada' | 'traslado_pendiente' | 'egresada'
     const [inquirySolicitudId, setInquirySolicitudId] = useState(null);
     const [sending, setSending] = useState(false);
     const [convivenciaActiva, setConvivenciaActiva] = useState(false);
@@ -82,7 +82,7 @@ function PropertyDetail() {
     }, [id]);
 
     const handleInquiry = async () => {
-        if (inquiryState) return;
+        if (inquiryState && inquiryState !== 'egresada') return;
         if (convivenciaActiva) {
             setMensajeBloqueo('Debes salir de tu grupo actual antes de enviar una solicitud.');
             return;
@@ -177,6 +177,8 @@ function PropertyDetail() {
                 return { label: 'Solicitud Declinada', className: 'btn btn-danger btn-lg', disabled: true };
             case 'traslado_pendiente':
                 return { label: 'Solicitud en revisión', className: 'btn btn-accent btn-lg', disabled: true };
+            case 'egresada':
+                return { label: 'Volver a solicitar informes', className: 'btn btn-primary btn-lg', disabled: false };
             default:
                 if (convivenciaActiva) {
                     return {
@@ -194,7 +196,7 @@ function PropertyDetail() {
     const handleBtnClick = () => {
         if (inquiryState === 'aceptada' && inquirySolicitudId) {
             navigate(`/chat/${inquirySolicitudId}`);
-        } else if (!inquiryState) {
+        } else if (!inquiryState || inquiryState === 'egresada') {
             handleInquiry();
         }
     };
@@ -395,6 +397,11 @@ function PropertyDetail() {
                                 {inquiryState === 'confirmada' && (
                                     <p className="interest-note animate-fade-in" style={{ color: 'var(--success, #22c55e)' }}>
                                         ¡Felicidades! Has sido confirmado como inquilino. Revisa tu grupo de roommates.
+                                    </p>
+                                )}
+                                {inquiryState === 'egresada' && (
+                                    <p className="interest-note animate-fade-in" style={{ color: 'var(--warning, #f59e0b)' }}>
+                                        Esta es una propiedad en la que ya estuviste. Puedes volver a enviar una solicitud.
                                     </p>
                                 )}
                                 {inquiryState === 'declinada' && (

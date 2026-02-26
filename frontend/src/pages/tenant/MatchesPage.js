@@ -1,8 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { getAllTenantsCompatibility, requestMatch, getMatches, acceptMatch, rejectMatch } from '../../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { getAllTenantsCompatibility, requestMatch, getMatches, acceptMatch, rejectMatch, unlinkMatch } from '../../services/api';
 import './MatchesPage.css';
 
 function MatchesPage() {
+    const navigate = useNavigate();
     const [tenants, setTenants] = useState([]);
     const [pendingMatches, setPendingMatches] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -12,6 +14,7 @@ function MatchesPage() {
     const normalizeMatch = (m) => ({
         ...m,
         id_match: m.id_match || m.id || null,
+        matchedUserId: m.matchedUserId || m.matched_user_id || null,
         estado: m.estado || m.status || 'pendiente',
         porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
         usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
@@ -21,13 +24,12 @@ function MatchesPage() {
         calificacion_promedio: m.calificacion_promedio ?? null,
         total_calificaciones: Number(m.total_calificaciones || 0),
     });
-    useEffect(() => {
-        const fetchData = async () => {
-            setLoading(true);
-            const [tenantsResult, matchesResult] = await Promise.all([
-                getAllTenantsCompatibility(),
-                getMatches(),
-            ]);
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        const [tenantsResult, matchesResult] = await Promise.all([
+            getAllTenantsCompatibility(),
+            getMatches(),
+        ]);
 
             if (tenantsResult.success) {
                 const normalizados = (tenantsResult.tenants || []).map((tenant) => ({
@@ -45,10 +47,12 @@ function MatchesPage() {
                 setPendingMatches(normalizados);
             }
 
-            setLoading(false);
-        };
-        fetchData();
+        setLoading(false);
     }, []);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
 
     const handleRequestMatch = async (tenantId) => {
         setRequestingId(tenantId);
@@ -84,6 +88,34 @@ function MatchesPage() {
             );
         } else if (action === 'accepted') {
             alert(result.error || 'No fue posible procesar el match');
+        }
+    };
+
+    const handleUnlinkMatch = async (match) => {
+        const matchId = match?.id_match;
+        if (!matchId) return;
+
+        const confirmUnlink = window.confirm('¿Seguro que deseas desvincular este match?');
+        if (!confirmUnlink) return;
+
+        const result = await unlinkMatch(matchId);
+        if (!result.success) {
+            alert(result.error || 'No se pudo desvincular el match');
+            return;
+        }
+
+        setPendingMatches((prev) => prev.filter((m) => m.id_match !== matchId));
+        const matchedUserId = match.matchedUserId || match.matched_user_id || null;
+        if (matchedUserId) {
+            setTenants((prev) =>
+                prev.map((t) =>
+                    t.id_usuario === matchedUserId
+                        ? { ...t, match_estado: null, match: null }
+                        : t
+                )
+            );
+        } else {
+            await fetchData();
         }
     };
 
@@ -244,9 +276,37 @@ function MatchesPage() {
 
                                     <div className="match-card-right">
                                         {matchEstado === 'pendiente' ? (
-                                            <span className="match-status-badge pending-badge">Solicitud enviada</span>
+                                            <div className="match-actions">
+                                                <span className="match-status-badge pending-badge">Solicitud enviada</span>
+                                                <button
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => handleUnlinkMatch({
+                                                        id_match: tenant.match?.id_match,
+                                                        matchedUserId: tenant.id_usuario,
+                                                    })}
+                                                >
+                                                    Desvincular
+                                                </button>
+                                            </div>
                                         ) : matchEstado === 'aceptado' ? (
-                                            <span className="match-status-badge accepted">Match aceptado</span>
+                                            <div className="match-actions">
+                                                <span className="match-status-badge accepted">Match aceptado</span>
+                                                <button
+                                                    className="btn btn-accent btn-sm"
+                                                    onClick={() => navigate(`/chat/match/${tenant.match?.id_chat_match || tenant.match?.id_match}`)}
+                                                >
+                                                    Ir al chat
+                                                </button>
+                                                <button
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => handleUnlinkMatch({
+                                                        id_match: tenant.match?.id_match,
+                                                        matchedUserId: tenant.id_usuario,
+                                                    })}
+                                                >
+                                                    Desvincular
+                                                </button>
+                                            </div>
                                         ) : (
                                             <button
                                                 className="btn btn-primary"
@@ -341,10 +401,32 @@ function MatchesPage() {
                                                     Rechazar
                                                 </button>
                                             </div>
+                                        ) : status === 'aceptado' ? (
+                                            <div className="match-actions">
+                                                <span className="match-status-badge accepted">Aceptado</span>
+                                                <button
+                                                    className="btn btn-accent btn-sm"
+                                                    onClick={() => navigate(`/chat/match/${match.id_chat_match || match.id_match}`)}
+                                                >
+                                                    Ir al chat
+                                                </button>
+                                                <button
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => handleUnlinkMatch(match)}
+                                                >
+                                                    Desvincular
+                                                </button>
+                                            </div>
                                         ) : (
-                                            <span className={`match-status-badge ${status === 'aceptado' ? 'accepted' : 'rejected'}`}>
-                                                {status === 'aceptado' ? 'Aceptado' : 'Rechazado'}
-                                            </span>
+                                            <div className="match-actions">
+                                                <span className="match-status-badge rejected">Rechazado</span>
+                                                <button
+                                                    className="btn btn-ghost btn-sm"
+                                                    onClick={() => handleUnlinkMatch(match)}
+                                                >
+                                                    Eliminar
+                                                </button>
+                                            </div>
                                         )}
                                     </div>
                                 </div>

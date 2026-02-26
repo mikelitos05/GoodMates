@@ -1,6 +1,6 @@
 // Use the current browser hostname so the app works from any device on the same network
 // e.g. from PC: http://localhost:5000/api  |  from phone: http://192.168.1.X:5000/api
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = `http://${window.location.hostname}:5001`;
 const API_URL = `${BACKEND_URL}/api`;
 
 // Helper: build full URL for images stored on the backend
@@ -488,6 +488,13 @@ export const omitPendingRating = async (pendingId, motivo_omision) => {
     });
 };
 
+// Obtener pendientes de tenant para calificar arrendadores
+export const getTenantPendingLandlordRatings = async () => {
+    return await apiRequest(`${API_URL}/calificaciones/pendientes-tenant`, {
+        headers: authHeaders(),
+    });
+};
+
 // -- SOLICITUDES DE INFORMES --
 
 // Crear solicitud de informes para una propiedad
@@ -571,6 +578,22 @@ export const getChatMessages = async (idSolicitud) => {
 // Enviar mensaje en un chat
 export const sendChatMessage = async (idSolicitud, contenido) => {
     return await apiRequest(`${API_URL}/chat/solicitud/${idSolicitud}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ contenido }),
+    });
+};
+
+// Obtener mensajes de chat tenant-tenant por match
+export const getMatchChatMessages = async (idMatch) => {
+    return await apiRequest(`${API_URL}/chat/match/${idMatch}`, {
+        headers: authHeaders(),
+    });
+};
+
+// Enviar mensaje en chat tenant-tenant por match
+export const sendMatchChatMessage = async (idMatch, contenido) => {
+    return await apiRequest(`${API_URL}/chat/match/${idMatch}`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ contenido }),

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyProperties, getImageUrl, getInterestedCount } from '../../services/api';
+import { getMyProperties, getImageUrl, getInterestedCount, getUserRatings } from '../../services/api';
 import './LandlordDashboard.css';
 
 function LandlordDashboard() {
@@ -9,6 +9,7 @@ function LandlordDashboard() {
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [interestedCount, setInterestedCount] = useState(0);
+    const [reputacion, setReputacion] = useState(null);
 
     useEffect(() => {
         const fetchProperties = async () => {
@@ -27,8 +28,16 @@ function LandlordDashboard() {
                 setInterestedCount(result.total || 0);
             }
         };
+        const fetchMyRating = async () => {
+            if (!user?.id) return;
+            const result = await getUserRatings(user.id);
+            if (result.success) {
+                setReputacion(result.reputacion || null);
+            }
+        };
         fetchCount();
-    }, []);
+        fetchMyRating();
+    }, [user?.id]);
 
     const availableRooms = properties.reduce((sum, p) => sum + (p.habitaciones_disponibles || p.availableRooms || 0), 0);
 
@@ -67,8 +76,8 @@ function LandlordDashboard() {
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Cal.</div>
-                        <div className="stat-value">N/A</div>
-                        <div className="stat-label">Calificación</div>
+                        <div className="stat-value">{reputacion?.promedio_general ?? 'N/A'}</div>
+                        <div className="stat-label">Calificación{reputacion?.total_calificaciones ? ` (${reputacion.total_calificaciones})` : ''}</div>
                     </div>
                 </div>
 

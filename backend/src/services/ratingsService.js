@@ -48,6 +48,21 @@ function normalizarPendiente(row) {
     };
 }
 
+function normalizarPendienteTenant(row) {
+    if (!row) return null;
+    const nombre = `${row.landlord_nombre || ''} ${row.landlord_apellido || ''}`.trim();
+    return {
+        id_pendiente: row.id_pendiente,
+        id_landlord: row.id_landlord,
+        landlord_nombre: nombre || 'Arrendador',
+        id_propiedad: row.id_propiedad,
+        propiedad_titulo: row.propiedad_titulo || 'Propiedad',
+        motivo: row.motivo,
+        motivo_label: MOTIVO_LABELS[row.motivo] || row.motivo || 'Pendiente de calificación',
+        fecha_evento: row.fecha_evento,
+    };
+}
+
 async function obtenerPendientesCalificacionLandlord(executor, idLandlord) {
     const [rows] = await executor.query(
         `SELECT cp.id_pendiente, cp.id_tenant, cp.id_propiedad, cp.motivo, cp.fecha_evento,
@@ -143,10 +158,100 @@ async function crearPendienteCalificacionLandlordPorEgreso(
     };
 }
 
+async function obtenerPendientesCalificacionTenant(executor, idTenant) {
+    const [rows] = await executor.query(
+        `SELECT cp.id_pendiente, cp.id_landlord, cp.id_propiedad, cp.motivo, cp.fecha_evento,
+                u.nombre AS landlord_nombre, u.apellido AS landlord_apellido,
+                p.titulo AS propiedad_titulo
+         FROM calificaciones_pendientes_tenant cp
+         JOIN usuarios u ON u.id_usuario = cp.id_landlord
+         LEFT JOIN propiedades p ON p.id_propiedad = cp.id_propiedad
+         WHERE cp.id_tenant = ? AND cp.estado = 'pendiente'
+         ORDER BY cp.fecha_evento ASC`,
+        [idTenant]
+    );
+
+    return rows.map(normalizarPendienteTenant);
+}
+
+async function crearPendienteCalificacionTenantAlLandlordPorEgreso(
+    executor,
+    { idTenant, idPropiedad, motivo = 'salida_tenant' }
+) {
+    if (!idTenant || !idPropiedad) return null;
+
+    const [tenantRows] = await executor.query(
+        "SELECT id_usuario FROM usuarios WHERE id_usuario = ? AND rol = 'tenant' LIMIT 1",
+        [idTenant]
+    );
+
+    if (tenantRows.length === 0) {
+        return null;
+    }
+
+    const [propRows] = await executor.query(
+        'SELECT id_propiedad, id_landlord FROM propiedades WHERE id_propiedad = ? LIMIT 1',
+        [idPropiedad]
+    );
+
+    if (propRows.length === 0) {
+        return null;
+    }
+
+    const idLandlord = propRows[0].id_landlord;
+    if (!idLandlord || idLandlord === idTenant) {
+        return null;
+    }
+
+    const [existente] = await executor.query(
+        `SELECT id_pendiente
+         FROM calificaciones_pendientes_tenant
+         WHERE id_tenant = ?
+           AND id_landlord = ?
+           AND id_propiedad = ?
+           AND estado = 'pendiente'
+         LIMIT 1`,
+        [idTenant, idLandlord, idPropiedad]
+    );
+
+    if (existente.length > 0) {
+        return {
+            id_pendiente: existente[0].id_pendiente,
+            id_tenant: idTenant,
+            id_landlord: idLandlord,
+            id_propiedad: idPropiedad,
+            motivo,
+            created: false,
+        };
+    }
+
+    const idPendiente = uuidv4();
+    const motivoFinal = MOTIVO_LABELS[motivo] ? motivo : 'salida_tenant';
+
+    await executor.query(
+        `INSERT INTO calificaciones_pendientes_tenant
+         (id_pendiente, id_tenant, id_landlord, id_propiedad, motivo, estado)
+         VALUES (?, ?, ?, ?, ?, 'pendiente')`,
+        [idPendiente, idTenant, idLandlord, idPropiedad, motivoFinal]
+    );
+
+    return {
+        id_pendiente: idPendiente,
+        id_tenant: idTenant,
+        id_landlord: idLandlord,
+        id_propiedad: idPropiedad,
+        motivo: motivoFinal,
+        created: true,
+    };
+}
+
 module.exports = {
     parsearPuntuacionDecimal,
     normalizarPendiente,
+    normalizarPendienteTenant,
     obtenerPendientesCalificacionLandlord,
     obtenerResumenPendientesCalificacionLandlord,
     crearPendienteCalificacionLandlordPorEgreso,
+    obtenerPendientesCalificacionTenant,
+    crearPendienteCalificacionTenantAlLandlordPorEgreso,
 };

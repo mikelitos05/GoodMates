@@ -45,10 +45,9 @@ function Navbar() {
             case 'tenant':
                 return [
                     { path: '/tenant/dashboard', label: 'Dashboard' },
-                    { path: '/tenant/profile', label: 'Mi Perfil' },
-                    { path: '/tenant/properties', label: 'Buscar Propiedades' },
-                    { path: '/tenant/matches', label: 'Matches' },
                     { path: '/roommate/group', label: 'Mi Grupo' },
+                    { path: '/tenant/matches', label: 'Matches' },
+                    { path: '/tenant/properties', label: 'Buscar propiedades' },
                 ];
             case 'landlord':
                 return [
@@ -110,6 +109,11 @@ function Navbar() {
                                         </div>
                                     </div>
                                     <div className="dropdown-divider" />
+                                    {user.role === 'tenant' && (
+                                        <Link to="/tenant/profile" className="dropdown-item" onClick={() => setDropdownOpen(false)}>
+                                            Mi Perfil
+                                        </Link>
+                                    )}
                                     <button className="dropdown-item" onClick={handleLogout}>
                                         Cerrar Sesión
                                     </button>

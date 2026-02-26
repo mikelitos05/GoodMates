@@ -15,6 +15,7 @@ const {
 } = require('../services/convivenciaRules');
 const {
     crearPendienteCalificacionLandlordPorEgreso,
+    crearPendienteCalificacionTenantAlLandlordPorEgreso,
     obtenerResumenPendientesCalificacionLandlord,
 } = require('../services/ratingsService');
 
@@ -403,6 +404,19 @@ router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlor
             idPropiedad: id,
             motivo: 'remocion_landlord',
         });
+        const pendienteCalificacionTenant = await crearPendienteCalificacionTenantAlLandlordPorEgreso(connection, {
+            idTenant,
+            idPropiedad: id,
+            motivo: 'remocion_landlord',
+        });
+        await connection.query(
+            `UPDATE solicitudes_informes
+             SET estado = 'egresada'
+             WHERE id_tenant = ?
+               AND id_propiedad = ?
+               AND estado = 'confirmada'`,
+            [idTenant, id]
+        );
 
         await connection.commit();
 
@@ -411,6 +425,7 @@ router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlor
             message: 'Inquilino removido exitosamente de la propiedad',
             resultado,
             pendiente_calificacion: pendienteCalificacion,
+            pendiente_calificacion_tenant: pendienteCalificacionTenant,
         });
     } catch (error) {
         await connection.rollback();

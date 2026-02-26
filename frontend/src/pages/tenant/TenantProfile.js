@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserRatings, getMyProfile } from '../../services/api';
 import careerCategories from '../../data/careerOptions';
@@ -49,6 +50,7 @@ const normalizeProfile = (profile = {}) => ({
 
 function TenantProfile() {
     const { user, updateProfile: ctxUpdateProfile } = useAuth();
+    const [searchParams, setSearchParams] = useSearchParams();
     const [profile, setProfile] = useState(() => normalizeProfile({}));
     const [initialProfile, setInitialProfile] = useState(() => normalizeProfile({}));
     const [saving, setSaving] = useState(false);
@@ -84,6 +86,13 @@ function TenantProfile() {
         };
         fetchRatings();
     }, [user?.id]);
+
+    useEffect(() => {
+        const requestedSection = searchParams.get('section');
+        if (requestedSection) {
+            setActiveSection(requestedSection);
+        }
+    }, [searchParams]);
 
     const handleChange = (field, value) => {
         setProfile((prev) => ({ ...prev, [field]: value }));
@@ -162,7 +171,10 @@ function TenantProfile() {
                             <button
                                 key={section.id}
                                 className={`profile-nav-item ${activeSection === section.id ? 'active' : ''}`}
-                                onClick={() => setActiveSection(section.id)}
+                                onClick={() => {
+                                    setActiveSection(section.id);
+                                    setSearchParams({ section: section.id });
+                                }}
                             >
                                 {section.label}
                             </button>
@@ -460,29 +472,6 @@ function TenantProfile() {
                                             </div>
                                             <p className="reputation-count">{reputacion.total_calificaciones} calificación{reputacion.total_calificaciones !== 1 ? 'es' : ''}</p>
                                         </div>
-                                        <div className="reputation-categories">
-                                            <div className="reputation-category">
-                                                <span className="category-label">Limpieza</span>
-                                                <div className="category-bar-wrapper">
-                                                    <div className="category-bar" style={{ width: `${(reputacion.promedio_limpieza / 5) * 100}%` }}></div>
-                                                </div>
-                                                <span className="category-value">{reputacion.promedio_limpieza}</span>
-                                            </div>
-                                            <div className="reputation-category">
-                                                <span className="category-label">Convivencia</span>
-                                                <div className="category-bar-wrapper">
-                                                    <div className="category-bar" style={{ width: `${(reputacion.promedio_convivencia / 5) * 100}%` }}></div>
-                                                </div>
-                                                <span className="category-value">{reputacion.promedio_convivencia}</span>
-                                            </div>
-                                            <div className="reputation-category">
-                                                <span className="category-label">Respeto a reglas</span>
-                                                <div className="category-bar-wrapper">
-                                                    <div className="category-bar" style={{ width: `${(reputacion.promedio_respeto_reglas / 5) * 100}%` }}></div>
-                                                </div>
-                                                <span className="category-value">{reputacion.promedio_respeto_reglas}</span>
-                                            </div>
-                                        </div>
                                         {calificaciones.length > 0 && (
                                             <div className="reviews-list">
                                                 <h3 className="reviews-title">Reseñas recibidas</h3>
@@ -494,14 +483,9 @@ function TenantProfile() {
                                                                 <p className="review-author">{c.calificador.nombre}</p>
                                                                 <p className="review-date">{new Date(c.fecha).toLocaleDateString('es-MX')}</p>
                                                             </div>
-                                                            <span className="review-score">{c.promedio}/5</span>
+                                                            <span className="review-score">{c.puntuacion}/5</span>
                                                         </div>
                                                         {c.comentario && <p className="review-comment">{c.comentario}</p>}
-                                                        <div className="review-scores">
-                                                            <span className="badge badge-accent">Limpieza: {c.limpieza}</span>
-                                                            <span className="badge badge-accent">Convivencia: {c.convivencia}</span>
-                                                            <span className="badge badge-accent">Reglas: {c.respeto_reglas}</span>
-                                                        </div>
                                                     </div>
                                                 ))}
                                             </div>

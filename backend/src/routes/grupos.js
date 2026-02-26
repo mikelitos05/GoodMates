@@ -12,6 +12,7 @@ const {
 } = require('../services/convivenciaRules');
 const {
     crearPendienteCalificacionLandlordPorEgreso,
+    crearPendienteCalificacionTenantAlLandlordPorEgreso,
 } = require('../services/ratingsService');
 
 // Obtener el grupo de roommates del usuario autenticado
@@ -75,10 +76,23 @@ router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res)
         let propiedad = null;
         if (grupo.id_propiedad) {
             const [props] = await pool.query(
-                'SELECT id_propiedad, titulo, direccion, ciudad FROM propiedades WHERE id_propiedad = ?',
+                'SELECT id_propiedad, titulo, direccion, ciudad, imagenes FROM propiedades WHERE id_propiedad = ?',
                 [grupo.id_propiedad]
             );
-            if (props.length > 0) propiedad = props[0];
+            if (props.length > 0) {
+                propiedad = {
+                    ...props[0],
+                    imagenes: (() => {
+                        try {
+                            return typeof props[0].imagenes === 'string'
+                                ? JSON.parse(props[0].imagenes)
+                                : (props[0].imagenes || []);
+                        } catch {
+                            return [];
+                        }
+                    })(),
+                };
+            }
         }
 
         res.json({
@@ -314,6 +328,21 @@ router.delete('/:id/miembros/:idUsuario', verificarToken, async (req, res) => {
             idPropiedad: resultado.idPropiedad,
             motivo: 'salida_tenant',
         });
+        const pendienteCalificacionTenant = await crearPendienteCalificacionTenantAlLandlordPorEgreso(connection, {
+            idTenant: idUsuario,
+            idPropiedad: resultado.idPropiedad,
+            motivo: 'salida_tenant',
+        });
+        if (resultado.idPropiedad) {
+            await connection.query(
+                `UPDATE solicitudes_informes
+                 SET estado = 'egresada'
+                 WHERE id_tenant = ?
+                   AND id_propiedad = ?
+                   AND estado = 'confirmada'`,
+                [idUsuario, resultado.idPropiedad]
+            );
+        }
         await connection.commit();
 
         res.json({
@@ -323,6 +352,7 @@ router.delete('/:id/miembros/:idUsuario', verificarToken, async (req, res) => {
                 : 'Miembro removido del grupo',
             resultado,
             pendiente_calificacion: pendienteCalificacion,
+            pendiente_calificacion_tenant: pendienteCalificacionTenant,
         });
 
     } catch (error) {

@@ -197,11 +197,52 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
         }
 
         const [existing] = await pool.query(
-            'SELECT id_solicitud FROM solicitudes_informes WHERE id_tenant = ? AND id_propiedad = ?',
+            'SELECT id_solicitud, estado FROM solicitudes_informes WHERE id_tenant = ? AND id_propiedad = ?',
             [req.usuario.id, id_propiedad]
         );
 
         if (existing.length > 0) {
+            const solicitudExistente = existing[0];
+            if (solicitudExistente.estado === 'egresada') {
+                await pool.query(
+                    `UPDATE solicitudes_informes
+                     SET estado = 'pendiente',
+                         mensaje_tenant = ?,
+                         fecha_actualizacion = CURRENT_TIMESTAMP
+                     WHERE id_solicitud = ?`,
+                    [mensaje || null, solicitudExistente.id_solicitud]
+                );
+
+                const id_notificacion = uuidv4();
+                const tenantNombre = req.usuario.nombre || req.usuario.username || 'Un inquilino';
+                await pool.query(
+                    `INSERT INTO notificaciones (id_notificacion, id_usuario, titulo, mensaje, tipo)
+                     VALUES (?, ?, ?, ?, 'solicitud')`,
+                    [
+                        id_notificacion,
+                        propiedad.id_landlord,
+                        'Nueva solicitud de informes',
+                        `${tenantNombre} volvió a solicitar informes para "${propiedad.titulo}"`,
+                    ]
+                );
+
+                const io = req.app.get('io');
+                if (io) {
+                    io.to(`usuario-${propiedad.id_landlord}`).emit('nueva-solicitud', {
+                        id_solicitud: solicitudExistente.id_solicitud,
+                        id_propiedad,
+                        titulo_propiedad: propiedad.titulo,
+                        tenant_nombre: tenantNombre,
+                    });
+                }
+
+                return res.status(201).json({
+                    success: true,
+                    message: 'Solicitud enviada exitosamente',
+                    solicitud: { id_solicitud: solicitudExistente.id_solicitud, estado: 'pendiente' },
+                });
+            }
+
             return res.status(409).json({ success: false, message: 'Ya enviaste una solicitud para esta propiedad' });
         }
 
