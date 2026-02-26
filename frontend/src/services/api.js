@@ -259,6 +259,14 @@ export const rejectMatch = async (matchId) => {
     });
 };
 
+// Desvincular/eliminar un match existente
+export const unlinkMatch = async (matchId) => {
+    return await apiRequest(`${API_URL}/matches/${matchId}/desvincular`, {
+        method: 'DELETE',
+        headers: authHeaders(),
+    });
+};
+
 // Obtener todos los tenants con compatibilidad en tiempo real
 export const getAllTenantsCompatibility = async () => {
     return await apiRequest(`${API_URL}/matches/all-tenants`, {
