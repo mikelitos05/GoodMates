@@ -28,14 +28,14 @@ const server = http.createServer(app);
 // Configurar Socket.io para comunicacion en tiempo real en el Board
 const io = new Server(server, {
     cors: {
-        origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+        origin: '*',  // Permitir conexiones desde cualquier origen (dev)
         methods: ['GET', 'POST'],
     },
 });
 
-// Configurar CORS para permitir peticiones del frontend
+// Configurar CORS para permitir peticiones desde cualquier dispositivo en la red local
 app.use(cors({
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: true,  // Reflejar el origin de la petición (permite cualquier origen)
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
@@ -143,11 +143,25 @@ const startServer = async () => {
         await testConnection();
         await initDatabase();
 
-        server.listen(PORT, () => {
+        server.listen(PORT, '0.0.0.0', () => {
+            // Detectar IP local para acceso desde celular
+            const os = require('os');
+            const nets = os.networkInterfaces();
+            let lanIP = 'desconocida';
+            for (const iface of Object.values(nets)) {
+                for (const net of iface) {
+                    if (net.family === 'IPv4' && !net.internal) {
+                        lanIP = net.address;
+                        break;
+                    }
+                }
+            }
             console.log('\n Servidor corriendo exitosamente');
-            console.log(` Local: http://localhost:${PORT}`);
-            console.log(` Health check: http://localhost:${PORT}/api/health`);
-            console.log(` Socket.io habilitado para tiempo real\n`);
+            console.log(` Local:    http://localhost:${PORT}`);
+            console.log(` Red LAN:  http://${lanIP}:${PORT}`);
+            console.log(` Health:   http://localhost:${PORT}/api/health`);
+            console.log(` Socket.io habilitado para tiempo real`);
+            console.log(` \n Para acceder desde tu celular, abre: http://${lanIP}:3000\n`);
         });
 
         server.on('error', (error) => {

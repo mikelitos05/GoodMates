@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
-import { getProperties } from '../../services/api';
+import { getProperties, getImageUrl } from '../../services/api';
 import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import { getCoordinates, MEXICO_CENTER, MEXICO_ZOOM } from '../../data/cityCoordinates';
 import './PropertySearch.css';
@@ -107,6 +107,7 @@ function PropertySearch() {
         const bathrooms = property.banos || property.bathrooms || 0;
         const availableRooms = property.habitaciones_disponibles || property.availableRooms || 0;
         const amenities = property.amenidades || property.amenities || [];
+        const images = property.imagenes || [];
         const compat = getCompatibility(property);
 
         return (
@@ -119,7 +120,10 @@ function PropertySearch() {
             >
                 {!compact && (
                     <div className="property-image">
-                        <div className="property-image-placeholder">🏠</div>
+                        {images.length > 0
+                            ? <img src={getImageUrl(images[0])} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : <div className="property-image-placeholder">🏠</div>
+                        }
                         <span className="property-rooms-badge">
                             {availableRooms} hab. disponible{availableRooms !== 1 ? 's' : ''}
                         </span>

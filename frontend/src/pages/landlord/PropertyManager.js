@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyProperties, createProperty, updateProperty, deleteProperty } from '../../services/api';
+import { getMyProperties, createProperty, updateProperty, deleteProperty, getImageUrl } from '../../services/api';
 import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import { AMENIDADES, REGLAS } from '../../data/propertyOptions';
 import { getCoordinates, MEXICO_CENTER } from '../../data/cityCoordinates';
@@ -411,7 +411,7 @@ function PropertyManager() {
                                         <div className="image-preview-grid">
                                             {existingImages.map((src, i) => (
                                                 <div key={`existing-${i}`} className="image-preview-item">
-                                                    <img src={src.startsWith('http') ? src : `${window.location.origin}${src}`} alt={`Propiedad ${i + 1}`} />
+                                                    <img src={getImageUrl(src)} alt={`Propiedad ${i + 1}`} />
                                                     <button type="button" className="image-preview-remove" onClick={() => removeExistingImage(i)}>✕</button>
                                                 </div>
                                             ))}
@@ -496,7 +496,7 @@ function PropertyManager() {
                             <div key={id} className="manager-property-card animate-fade-in-up">
                                 <div className="manager-property-image">
                                     {images.length > 0
-                                        ? <img src={images[0].startsWith('http') ? images[0] : `${window.location.origin}${images[0]}`} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                                        ? <img src={getImageUrl(images[0])} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
                                         : '🏠'
                                     }
                                 </div>

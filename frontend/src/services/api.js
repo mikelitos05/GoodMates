@@ -1,4 +1,14 @@
-const API_URL = 'http://localhost:5000/api';
+// Use the current browser hostname so the app works from any device on the same network
+// e.g. from PC: http://localhost:5000/api  |  from phone: http://192.168.1.X:5000/api
+const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const API_URL = `${BACKEND_URL}/api`;
+
+// Helper: build full URL for images stored on the backend
+export const getImageUrl = (path) => {
+    if (!path) return null;
+    if (path.startsWith('http')) return path;
+    return `${BACKEND_URL}${path}`;  // e.g. /uploads/propiedades/123.jpg → http://192.168.1.X:5000/uploads/propiedades/123.jpg
+};
 
 // -- FUNCIONES AUXILIARES --
 
