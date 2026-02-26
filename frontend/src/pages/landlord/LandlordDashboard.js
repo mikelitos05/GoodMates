@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyProperties } from '../../services/api';
+import { getMyProperties, getImageUrl } from '../../services/api';
 import './LandlordDashboard.css';
 
 function LandlordDashboard() {
@@ -79,10 +79,16 @@ function LandlordDashboard() {
                                     const avail = prop.habitaciones_disponibles || prop.availableRooms || 0;
                                     const price = prop.precio || prop.price || 0;
                                     const available = prop.disponible !== undefined ? prop.disponible : (prop.available !== undefined ? prop.available : true);
+                                    const images = prop.imagenes || [];
 
                                     return (
                                         <div key={id} className="landlord-property-item">
-                                            <div className="landlord-property-image">Sin imagen</div>
+                                            <div className="landlord-property-image">
+                                                {images.length > 0
+                                                    ? <img src={getImageUrl(images[0])} alt={title} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+                                                    : '🏠'
+                                                }
+                                            </div>
                                             <div className="landlord-property-info">
                                                 <h3 className="landlord-property-title">{title}</h3>
                                                 <p className="landlord-property-location">{city}</p>

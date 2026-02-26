@@ -23,6 +23,7 @@ import MatchesPage from './pages/tenant/MatchesPage';
 
 import LandlordDashboard from './pages/landlord/LandlordDashboard';
 import PropertyManager from './pages/landlord/PropertyManager';
+import InquiryManager from './pages/landlord/InquiryManager';
 
 
 import RoommateGroup from './pages/roommate/RoommateGroup';
@@ -31,6 +32,8 @@ import MatesBoard from './pages/roommate/MatesBoard';
 
 
 import AdminDashboard from './pages/admin/AdminDashboard';
+
+import ChatPage from './pages/ChatPage';
 
 import TermsPage from './pages/legal/TermsPage';
 import PrivacyPage from './pages/legal/PrivacyPage';
@@ -94,6 +97,11 @@ function App() {
                   <PropertyManager />
                 </ProtectedRoute>
               } />
+              <Route path="/landlord/inquiries" element={
+                <ProtectedRoute allowedRoles={['landlord']}>
+                  <InquiryManager />
+                </ProtectedRoute>
+              } />
 
 
               <Route path="/roommate/group" element={
@@ -116,6 +124,13 @@ function App() {
               <Route path="/admin/dashboard" element={
                 <ProtectedRoute allowedRoles={['admin']}>
                   <AdminDashboard />
+                </ProtectedRoute>
+              } />
+
+              {/* Chat (accesible para tenant y landlord) */}
+              <Route path="/chat/:idSolicitud" element={
+                <ProtectedRoute allowedRoles={['tenant', 'landlord']}>
+                  <ChatPage />
                 </ProtectedRoute>
               } />
 

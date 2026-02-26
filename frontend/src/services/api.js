@@ -1,6 +1,6 @@
 // Use the current browser hostname so the app works from any device on the same network
 // e.g. from PC: http://localhost:5000/api  |  from phone: http://192.168.1.X:5000/api
-const BACKEND_URL = `http://${window.location.hostname}:5000`;
+const BACKEND_URL = `http://${window.location.hostname}:5001`;
 const API_URL = `${BACKEND_URL}/api`;
 
 // Helper: build full URL for images stored on the backend
@@ -414,5 +414,71 @@ export const rateRoommate = async (ratingData) => {
 export const getUserRatings = async (userId) => {
     return await apiRequest(`${API_URL}/calificaciones/usuario/${userId}`, {
         headers: authHeaders(),
+    });
+};
+
+// -- SOLICITUDES DE INFORMES --
+
+// Crear solicitud de informes para una propiedad
+export const createInquiry = async (idPropiedad, mensaje) => {
+    return await apiRequest(`${API_URL}/solicitudes`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ id_propiedad: idPropiedad, mensaje }),
+    });
+};
+
+// Obtener mis solicitudes enviadas (tenant)
+export const getMyInquiries = async () => {
+    return await apiRequest(`${API_URL}/solicitudes/mis-solicitudes`, {
+        headers: authHeaders(),
+    });
+};
+
+// Obtener solicitudes recibidas (landlord)
+export const getReceivedInquiries = async () => {
+    return await apiRequest(`${API_URL}/solicitudes/recibidas`, {
+        headers: authHeaders(),
+    });
+};
+
+// Aceptar una solicitud (landlord)
+export const acceptInquiry = async (id) => {
+    return await apiRequest(`${API_URL}/solicitudes/${id}/aceptar`, {
+        method: 'PUT',
+        headers: authHeaders(),
+    });
+};
+
+// Rechazar una solicitud (landlord)
+export const rejectInquiry = async (id) => {
+    return await apiRequest(`${API_URL}/solicitudes/${id}/rechazar`, {
+        method: 'PUT',
+        headers: authHeaders(),
+    });
+};
+
+// -- CHAT --
+
+// Obtener mis chats activos
+export const getMyChats = async () => {
+    return await apiRequest(`${API_URL}/chat/mis-chats`, {
+        headers: authHeaders(),
+    });
+};
+
+// Obtener mensajes de un chat
+export const getChatMessages = async (idSolicitud) => {
+    return await apiRequest(`${API_URL}/chat/solicitud/${idSolicitud}`, {
+        headers: authHeaders(),
+    });
+};
+
+// Enviar mensaje en un chat
+export const sendChatMessage = async (idSolicitud, contenido) => {
+    return await apiRequest(`${API_URL}/chat/solicitud/${idSolicitud}`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify({ contenido }),
     });
 };

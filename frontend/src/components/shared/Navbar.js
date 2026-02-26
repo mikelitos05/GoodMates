@@ -54,6 +54,7 @@ function Navbar() {
                 return [
                     { path: '/landlord/dashboard', label: 'Dashboard' },
                     { path: '/landlord/properties', label: 'Mis Propiedades' },
+                    { path: '/landlord/inquiries', label: 'Solicitudes' },
                 ];
             case 'admin':
                 return [

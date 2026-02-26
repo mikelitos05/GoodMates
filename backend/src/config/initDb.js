@@ -250,7 +250,7 @@ const initDatabase = async () => {
         id_usuario CHAR(36) NOT NULL,
         titulo VARCHAR(200) NOT NULL,
         mensaje TEXT,
-        tipo ENUM('match', 'tarea', 'board', 'grupo', 'sistema') DEFAULT 'sistema',
+        tipo ENUM('match', 'tarea', 'board', 'grupo', 'sistema', 'solicitud') DEFAULT 'sistema',
         leida BOOLEAN DEFAULT FALSE,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
@@ -259,6 +259,51 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla notificaciones verificada');
+
+    // Actualizar enum de tipo si la tabla ya existía sin 'solicitud'
+    try {
+      await pool.query(`ALTER TABLE notificaciones MODIFY COLUMN tipo ENUM('match', 'tarea', 'board', 'grupo', 'sistema', 'solicitud') DEFAULT 'sistema'`);
+    } catch (e) {
+      // Ignorar si ya tiene el enum correcto
+    }
+
+    // Tabla de solicitudes de informes (inquiries de tenants a landlords)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS solicitudes_informes (
+        id_solicitud CHAR(36) PRIMARY KEY,
+        id_tenant CHAR(36) NOT NULL,
+        id_propiedad CHAR(36) NOT NULL,
+        id_landlord CHAR(36) NOT NULL,
+        estado ENUM('pendiente', 'aceptada', 'rechazada') DEFAULT 'pendiente',
+        mensaje_tenant TEXT,
+        fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_tenant) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_propiedad) REFERENCES propiedades(id_propiedad) ON DELETE CASCADE,
+        FOREIGN KEY (id_landlord) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        UNIQUE KEY uk_tenant_propiedad (id_tenant, id_propiedad),
+        INDEX idx_tenant (id_tenant),
+        INDEX idx_landlord (id_landlord),
+        INDEX idx_estado (estado)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla solicitudes_informes verificada');
+
+    // Tabla de mensajes del chat (chat entre tenant y landlord tras aceptar solicitud)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS mensajes_chat (
+        id_mensaje CHAR(36) PRIMARY KEY,
+        id_solicitud CHAR(36) NOT NULL,
+        id_emisor CHAR(36) NOT NULL,
+        contenido TEXT NOT NULL,
+        fecha_envio TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_solicitud) REFERENCES solicitudes_informes(id_solicitud) ON DELETE CASCADE,
+        FOREIGN KEY (id_emisor) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        INDEX idx_solicitud (id_solicitud),
+        INDEX idx_emisor (id_emisor)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla mensajes_chat verificada');
 
     console.log('Base de datos inicializada correctamente: Todas las tablas verificadas');
   } catch (error) {

@@ -18,9 +18,11 @@ const tareasRoutes = require('./routes/tareas');
 const boardRoutes = require('./routes/board');
 const adminRoutes = require('./routes/admin');
 const calificacionesRoutes = require('./routes/calificaciones');
+const solicitudesRoutes = require('./routes/solicitudes');
+const chatRoutes = require('./routes/chat');
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001;
 
 // Crear servidor HTTP para usar con Socket.io
 const server = http.createServer(app);
@@ -58,6 +60,8 @@ app.use('/api/tareas', tareasRoutes);
 app.use('/api/board', boardRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/calificaciones', calificacionesRoutes);
+app.use('/api/solicitudes', solicitudesRoutes);
+app.use('/api/chat', chatRoutes);
 
 // Endpoint de health check para verificar que el servidor esta funcionando
 app.get('/api/health', (req, res) => {
@@ -83,10 +87,22 @@ app.get('/api/health', (req, res) => {
 io.on('connection', (socket) => {
     console.log('Usuario conectado al socket:', socket.id);
 
+    // El usuario se une a su sala personal para recibir notificaciones
+    socket.on('unirse-usuario', (idUsuario) => {
+        socket.join(`usuario-${idUsuario}`);
+        console.log(`Socket ${socket.id} se unio a la sala del usuario ${idUsuario}`);
+    });
+
     // El usuario se une a la sala de su grupo para recibir actualizaciones
     socket.on('unirse-grupo', (idGrupo) => {
         socket.join(`grupo-${idGrupo}`);
         console.log(`Socket ${socket.id} se unio al grupo ${idGrupo}`);
+    });
+
+    // El usuario se une a una sala de chat
+    socket.on('unirse-chat', (idSolicitud) => {
+        socket.join(`chat-${idSolicitud}`);
+        console.log(`Socket ${socket.id} se unio al chat ${idSolicitud}`);
     });
 
     // Emitir nueva publicacion a todos los miembros del grupo

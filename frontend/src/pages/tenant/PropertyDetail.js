@@ -1,13 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
-import { getPropertyById, getImageUrl } from '../../services/api';
+import { useParams, Link, useNavigate } from 'react-router-dom';
+import { getPropertyById, getImageUrl, createInquiry, getMyInquiries } from '../../services/api';
 import './PropertyDetail.css';
 
 function PropertyDetail() {
     const { id } = useParams();
+    const navigate = useNavigate();
     const [property, setProperty] = useState(null);
     const [loading, setLoading] = useState(true);
-    const [interested, setInterested] = useState(false);
+    const [inquiryState, setInquiryState] = useState(null); // null | 'pendiente' | 'aceptada' | 'rechazada'
+    const [inquirySolicitudId, setInquirySolicitudId] = useState(null);
+    const [sending, setSending] = useState(false);
     const [activeImg, setActiveImg] = useState(0);
     const [lightbox, setLightbox] = useState(false);
 
@@ -36,6 +39,34 @@ function PropertyDetail() {
         };
         fetchProperty();
     }, [id]);
+
+    // Check if tenant already sent an inquiry for this property
+    useEffect(() => {
+        const checkExisting = async () => {
+            const result = await getMyInquiries();
+            if (result.success && result.solicitudes) {
+                const existing = result.solicitudes.find(s => s.id_propiedad === id);
+                if (existing) {
+                    setInquiryState(existing.estado);
+                    setInquirySolicitudId(existing.id_solicitud);
+                }
+            }
+        };
+        checkExisting();
+    }, [id]);
+
+    const handleInquiry = async () => {
+        if (inquiryState) return;
+        setSending(true);
+        const result = await createInquiry(id, '');
+        if (result.success) {
+            setInquiryState('pendiente');
+            setInquirySolicitudId(result.solicitud?.id_solicitud);
+        } else {
+            alert(result.error || 'Error al enviar solicitud');
+        }
+        setSending(false);
+    };
 
     if (loading) {
         return (
@@ -78,6 +109,33 @@ function PropertyDetail() {
     const landlordNombre = property.landlord_nombre || '';
     const landlordApellido = property.landlord_apellido || '';
     const landlordEmail = property.landlord_email || '';
+
+    // Button label and style based on inquiry state
+    const getInquiryButton = () => {
+        if (sending) {
+            return { label: 'Enviando...', className: 'btn btn-primary btn-lg', disabled: true };
+        }
+        switch (inquiryState) {
+            case 'pendiente':
+                return { label: '⏳ Solicitud Pendiente', className: 'btn btn-accent btn-lg', disabled: true };
+            case 'aceptada':
+                return { label: '💬 Ir al Chat', className: 'btn btn-success btn-lg', disabled: false };
+            case 'rechazada':
+                return { label: '✕ Solicitud Rechazada', className: 'btn btn-danger btn-lg', disabled: true };
+            default:
+                return { label: '📩 Solicitar Informes', className: 'btn btn-primary btn-lg', disabled: false };
+        }
+    };
+
+    const inquiryBtn = getInquiryButton();
+
+    const handleBtnClick = () => {
+        if (inquiryState === 'aceptada' && inquirySolicitudId) {
+            navigate(`/chat/${inquirySolicitudId}`);
+        } else if (!inquiryState) {
+            handleInquiry();
+        }
+    };
 
     return (
         <>
@@ -213,16 +271,27 @@ function PropertyDetail() {
                                 </div>
 
                                 <button
-                                    className={`btn ${interested ? 'btn-accent' : 'btn-primary'} btn-lg`}
+                                    className={inquiryBtn.className}
                                     style={{ width: '100%' }}
-                                    onClick={() => setInterested(!interested)}
+                                    onClick={handleBtnClick}
+                                    disabled={inquiryBtn.disabled}
                                 >
-                                    {interested ? 'Solicitud Enviada' : 'Me interesa'}
+                                    {inquiryBtn.label}
                                 </button>
 
-                                {interested && (
+                                {inquiryState === 'pendiente' && (
                                     <p className="interest-note animate-fade-in">
                                         Tu solicitud ha sido enviada al arrendador. Te notificaremos cuando responda.
+                                    </p>
+                                )}
+                                {inquiryState === 'aceptada' && (
+                                    <p className="interest-note animate-fade-in" style={{ color: 'var(--success, #22c55e)' }}>
+                                        ¡El arrendador aceptó tu solicitud! Haz clic en el botón para iniciar el chat.
+                                    </p>
+                                )}
+                                {inquiryState === 'rechazada' && (
+                                    <p className="interest-note animate-fade-in" style={{ color: 'var(--danger, #ef4444)' }}>
+                                        Lo sentimos, el arrendador rechazó tu solicitud.
                                     </p>
                                 )}
                             </div>
