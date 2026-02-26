@@ -307,7 +307,7 @@ function PropertyManager() {
                         <p className="section-subtitle">Gestiona tus propiedades publicadas en GoodMates.</p>
                     </div>
                     <button className="btn btn-primary" onClick={() => { resetForm(); setShowForm(!showForm); }}>
-                        {showForm ? '✕ Cancelar' : '+ Nueva Propiedad'}
+                        {showForm ? 'Cancelar' : '+ Nueva Propiedad'}
                     </button>
                 </div>
 
@@ -364,7 +364,7 @@ function PropertyManager() {
                                 {/* ──── MAP LOCATION PICKER ──── */}
                                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                                     <label className="form-label">
-                                        📍 Ubicación en el mapa
+                                        Ubicación en el mapa
                                         <span className="form-label-hint">
                                             {geocoding
                                                 ? ' — Detectando ubicación...'
@@ -399,7 +399,7 @@ function PropertyManager() {
                                                 className="map-picker-reset"
                                                 onClick={() => { handleChange('lat', null); handleChange('lng', null); setMapKey((k) => k + 1); }}
                                             >
-                                                ✕ Quitar pin
+                                                Quitar pin
                                             </button>
                                         )}
                                     </div>
@@ -432,7 +432,7 @@ function PropertyManager() {
 
                                 {/* ──── IMAGE UPLOAD ──── */}
                                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                                    <label className="form-label">📷 Imágenes de la propiedad <span style={{ color: 'var(--danger)' }}>*</span></label>
+                                    <label className="form-label">Imágenes de la propiedad <span style={{ color: 'var(--danger)' }}>*</span></label>
                                     <input
                                         type="file"
                                         ref={fileInputRef}
@@ -453,14 +453,14 @@ function PropertyManager() {
                                             {existingImages.map((src, i) => (
                                                 <div key={`existing-${i}`} className="image-preview-item">
                                                     <img src={getImageUrl(src)} alt={`Propiedad ${i + 1}`} />
-                                                    <button type="button" className="image-preview-remove" onClick={() => removeExistingImage(i)}>✕</button>
+                                                    <button type="button" className="image-preview-remove" onClick={() => removeExistingImage(i)}>Quitar</button>
                                                 </div>
                                             ))}
                                             {imagePreviews.map((src, i) => (
                                                 <div key={`new-${i}`} className="image-preview-item image-preview-new">
                                                     <img src={src} alt={`Nueva ${i + 1}`} />
                                                     <span className="image-preview-badge">Nueva</span>
-                                                    <button type="button" className="image-preview-remove" onClick={() => removeNewImage(i)}>✕</button>
+                                                    <button type="button" className="image-preview-remove" onClick={() => removeNewImage(i)}>Quitar</button>
                                                 </div>
                                             ))}
                                         </div>
@@ -480,7 +480,7 @@ function PropertyManager() {
                                             {form.amenities.map((a) => (
                                                 <span key={a} className="chip">
                                                     {a}
-                                                    <button type="button" className="chip-remove" onClick={() => removeFromList('amenities', a)}>✕</button>
+                                                    <button type="button" className="chip-remove" onClick={() => removeFromList('amenities', a)}>Quitar</button>
                                                 </span>
                                             ))}
                                         </div>
@@ -499,7 +499,7 @@ function PropertyManager() {
                                             {form.rules.map((r) => (
                                                 <span key={r} className="chip">
                                                     {r}
-                                                    <button type="button" className="chip-remove" onClick={() => removeFromList('rules', r)}>✕</button>
+                                                    <button type="button" className="chip-remove" onClick={() => removeFromList('rules', r)}>Quitar</button>
                                                 </span>
                                             ))}
                                         </div>
@@ -547,8 +547,8 @@ function PropertyManager() {
                                         <span className={`badge ${available ? 'badge-success' : 'badge-error'}`}>
                                             {available ? 'Activa' : 'Inactiva'}
                                         </span>
-                                        {hasCoords && <span className="badge badge-accent" title="Ubicación exacta configurada">📍</span>}
-                                        {images.length > 0 && <span className="badge badge-primary">{images.length} 📷</span>}
+                                        {hasCoords && <span className="badge badge-accent" title="Ubicación exacta configurada">Mapa</span>}
+                                        {images.length > 0 && <span className="badge badge-primary">{images.length} imágenes</span>}
                                     </div>
                                     <p className="manager-property-location">{address}{address && city ? ', ' : ''}{city}</p>
                                     <div className="manager-property-meta">

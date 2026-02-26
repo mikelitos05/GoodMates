@@ -9,12 +9,18 @@ function TenantDashboard() {
     const [reputacion, setReputacion] = useState(null);
     const [matches, setMatches] = useState([]);
     const [group, setGroup] = useState(null);
-    const [loading, setLoading] = useState(true);
+
+    const normalizeMatch = (m) => ({
+        ...m,
+        id_match: m.id_match || m.id || null,
+        estado: m.estado || m.status || 'pendiente',
+        porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
+        usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
+    });
 
     useEffect(() => {
         const fetchData = async () => {
             if (!user?.id) return;
-            setLoading(true);
 
             const [ratingsRes, matchesRes, groupRes] = await Promise.all([
                 getUserRatings(user.id),
@@ -23,10 +29,10 @@ function TenantDashboard() {
             ]);
 
             if (ratingsRes.success) setReputacion(ratingsRes.reputacion);
-            if (matchesRes.success) setMatches(matchesRes.matches || []);
+            if (matchesRes.success) {
+                setMatches((matchesRes.matches || []).map(normalizeMatch));
+            }
             if (groupRes.success) setGroup(groupRes.grupo || null);
-
-            setLoading(false);
         };
         fetchData();
     }, [user?.id]);

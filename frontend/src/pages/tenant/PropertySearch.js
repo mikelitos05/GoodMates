@@ -7,16 +7,35 @@ import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import { getCoordinates, MEXICO_CENTER, MEXICO_ZOOM } from '../../data/cityCoordinates';
 import './PropertySearch.css';
 
+const NEUTRAL_MATCH_COLOR = '#94a3b8';
+
 /* ───── helper: compatibilidad real por propiedad ───── */
 function getCompatibility(property) {
-    // Use real backend-computed compatibility (average with property group tenants)
-    if (property.compatibilidad !== undefined && property.compatibilidad !== null) return property.compatibilidad;
-    if (property.compatibility !== undefined && property.compatibility !== null) return property.compatibility;
-    return null; // No group tenants → no compatibility data
+    const raw = property.compatibilidad ?? property.compatibility ?? property.porcentaje_compatibilidad;
+    if (raw === null || raw === undefined || raw === '') return null;
+    const parsed = Number.parseFloat(raw);
+    if (Number.isNaN(parsed)) return null;
+    return Math.max(0, Math.min(100, Math.round(parsed)));
+}
+
+function getPropertyRatingSummary(property) {
+    const rawPromedio = property.calificacion_promedio_inquilinos;
+    const rawCount = property.inquilinos_calificados;
+    const count = Number.isFinite(Number(rawCount)) ? Number(rawCount) : 0;
+    const promedio = rawPromedio === null || rawPromedio === undefined || rawPromedio === ''
+        ? null
+        : Number.parseFloat(rawPromedio);
+
+    if (!Number.isFinite(promedio)) {
+        return { promedio: null, count };
+    }
+
+    return { promedio: Number(promedio.toFixed(1)), count };
 }
 
 /* ───── helper: color semáforo ───── */
 function matchColor(pct) {
+    if (pct === null || pct === undefined) return NEUTRAL_MATCH_COLOR;
     // 0% = rojo, 50% = amarillo, 100% = verde
     const r = pct < 50 ? 255 : Math.round(255 - (pct - 50) * 5.1);
     const g = pct > 50 ? 220 : Math.round(pct * 4.4);
@@ -103,6 +122,9 @@ function PropertySearch() {
         const amenities = property.amenidades || property.amenities || [];
         const images = property.imagenes || [];
         const compat = getCompatibility(property);
+        const hasCompatibility = compat !== null;
+        const ratingSummary = getPropertyRatingSummary(property);
+        const hasRating = ratingSummary.promedio !== null && ratingSummary.count > 0;
 
         return (
             <Link
@@ -126,15 +148,13 @@ function PropertySearch() {
                 <div className="property-info">
                     <div className="property-info-top">
                         <h3 className="property-title">{title}</h3>
-                        {compat !== null && (
-                            <span
-                                className="property-match-badge"
-                                style={{ background: matchColor(compat) }}
-                                title={`${compat}% compatibilidad`}
-                            >
-                                {compat}%
-                            </span>
-                        )}
+                        <span
+                            className={`property-match-badge ${hasCompatibility ? '' : 'property-match-badge--na'}`}
+                            style={{ background: matchColor(compat) }}
+                            title={hasCompatibility ? `${compat}% compatibilidad` : 'Compatibilidad no disponible'}
+                        >
+                            {hasCompatibility ? `${compat}%` : 'N/A'}
+                        </span>
                     </div>
                     <p className="property-location">
                         {address}{address && city ? ', ' : ''}{city}{city && state ? ', ' : ''}{state}
@@ -144,6 +164,11 @@ function PropertySearch() {
                         <span>{bathrooms} baños</span>
                         <span>{availableRooms} disp.</span>
                     </div>
+                    <p className="property-rating-summary">
+                        {hasRating
+                            ? `Calificación inquilinos: ${ratingSummary.promedio.toFixed(1)} · ${ratingSummary.count} inquilino${ratingSummary.count !== 1 ? 's' : ''} calificado${ratingSummary.count !== 1 ? 's' : ''}`
+                            : 'Calificación inquilinos: Sin calificaciones'}
+                    </p>
                     {!compact && (
                         <div className="property-amenities-preview">
                             {(Array.isArray(amenities) ? amenities : []).slice(0, 3).map((a, i) => (
@@ -281,6 +306,8 @@ function PropertySearch() {
                         <span className="match-legend-text">Media</span>
                         <span className="match-legend-dot" style={{ background: matchColor(90) }}></span>
                         <span className="match-legend-text">Alta</span>
+                        <span className="match-legend-dot" style={{ background: matchColor(null) }}></span>
+                        <span className="match-legend-text">N/A</span>
                     </div>
                 </div>
 
@@ -294,7 +321,7 @@ function PropertySearch() {
                             </div>
                             {!loading && filtered.length === 0 && (
                                 <div className="no-results">
-                                    <span className="no-results-icon">🔍</span>
+                                    <span className="no-results-icon">Sin resultados</span>
                                     <h3>No se encontraron propiedades</h3>
                                     <p>Intenta ajustar tus filtros de búsqueda</p>
                                 </div>
@@ -326,6 +353,8 @@ function PropertySearch() {
                                     const rooms = property.habitaciones || property.rooms || 0;
                                     const availableRooms = property.habitaciones_disponibles || property.availableRooms || 0;
                                     const compat = getCompatibility(property);
+                                    const ratingSummary = getPropertyRatingSummary(property);
+                                    const hasRating = ratingSummary.promedio !== null && ratingSummary.count > 0;
                                     const coords = getPropertyCoords(property);
                                     const isHovered = hoveredId === id;
 
@@ -351,8 +380,13 @@ function PropertySearch() {
                                                     <p>{city}{city && state ? ', ' : ''}{state}</p>
                                                     <p className="map-popup-price">${price.toLocaleString()}/mes</p>
                                                     <p>{rooms} hab. • {availableRooms} disponible{availableRooms !== 1 ? 's' : ''}</p>
-                                                    <div className="map-popup-match" style={{ background: matchColor(compat) }}>
-                                                        {compat}% match
+                                                    <p>
+                                                        {hasRating
+                                                            ? `Calificación: ${ratingSummary.promedio.toFixed(1)} (${ratingSummary.count})`
+                                                            : 'Calificación: Sin calificaciones'}
+                                                    </p>
+                                                    <div className={`map-popup-match ${compat !== null ? '' : 'map-popup-match--na'}`} style={{ background: matchColor(compat) }}>
+                                                        {compat !== null ? `${compat}% match` : 'N/A'}
                                                     </div>
                                                     <Link to={`/tenant/properties/${id}`} className="map-popup-link">
                                                         Ver detalle →

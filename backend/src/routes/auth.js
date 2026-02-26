@@ -7,6 +7,33 @@ const { pool } = require('../config/db');
 
 const SALT_ROUNDS = 10;
 
+function parsearHobbies(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+
+    if (typeof value === 'string') {
+        try {
+            const parsed = JSON.parse(value);
+            return Array.isArray(parsed) ? parsed : [];
+        } catch {
+            return [];
+        }
+    }
+
+    return [];
+}
+
+function inferirPerfilCompletoDesdePerfil(perfilRow) {
+    if (!perfilRow) return false;
+
+    const edad = Number.parseInt(perfilRow.edad, 10);
+    const ciudad = typeof perfilRow.ciudad === 'string' ? perfilRow.ciudad.trim() : '';
+    const horario = typeof perfilRow.horario === 'string' ? perfilRow.horario.trim() : '';
+    const hobbies = parsearHobbies(perfilRow.hobbies).map((h) => String(h).trim()).filter(Boolean);
+
+    return Number.isFinite(edad) && edad > 0 && ciudad.length > 0 && horario.length > 0 && hobbies.length > 0;
+}
+
 // Registrar un nuevo usuario (tenant o landlord)
 router.post('/register', async (req, res) => {
     try {
@@ -175,6 +202,23 @@ router.post('/login', async (req, res) => {
             });
         }
 
+        let perfilCompleto = !!user.perfil_completo;
+        if (user.rol === 'tenant' && !perfilCompleto) {
+            const [perfilRows] = await pool.query(
+                'SELECT edad, ciudad, horario, hobbies FROM perfiles WHERE id_usuario = ? LIMIT 1',
+                [user.id_usuario]
+            );
+
+            const perfilCalculado = inferirPerfilCompletoDesdePerfil(perfilRows[0] || null);
+            if (perfilCalculado) {
+                perfilCompleto = true;
+                await pool.query(
+                    'UPDATE usuarios SET perfil_completo = TRUE WHERE id_usuario = ?',
+                    [user.id_usuario]
+                );
+            }
+        }
+
         // Generar token JWT con los datos del usuario
         const token = jwt.sign(
             {
@@ -200,7 +244,7 @@ router.post('/login', async (req, res) => {
                 email: user.email,
                 role: user.rol,
                 avatar: (user.nombre[0] + user.apellido[0]).toUpperCase(),
-                perfil_completo: !!user.perfil_completo,
+                perfil_completo: perfilCompleto,
             },
         });
 
@@ -232,7 +276,12 @@ router.get('/verify', async (req, res) => {
 
         // Buscar el usuario en la base de datos
         const [rows] = await pool.query(
-            'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol FROM usuarios WHERE id_usuario = ?',
+            `SELECT u.id_usuario, u.nombre_usuario, u.nombre, u.apellido, u.email, u.rol, u.perfil_completo,
+                    p.edad, p.ciudad, p.horario, p.hobbies
+             FROM usuarios u
+             LEFT JOIN perfiles p ON p.id_usuario = u.id_usuario
+             WHERE u.id_usuario = ?
+             LIMIT 1`,
             [decoded.id]
         );
 
@@ -244,6 +293,15 @@ router.get('/verify', async (req, res) => {
         }
 
         const user = rows[0];
+        const perfilCompletoCalculado = inferirPerfilCompletoDesdePerfil(user);
+        const perfilCompleto = !!user.perfil_completo || perfilCompletoCalculado;
+
+        if (perfilCompleto && !user.perfil_completo) {
+            await pool.query(
+                'UPDATE usuarios SET perfil_completo = TRUE WHERE id_usuario = ?',
+                [user.id_usuario]
+            );
+        }
 
         // Devolver los datos del usuario
         res.json({
@@ -256,7 +314,7 @@ router.get('/verify', async (req, res) => {
                 email: user.email,
                 role: user.rol,
                 avatar: (user.nombre[0] + user.apellido[0]).toUpperCase(),
-                perfil_completo: !!user.perfil_completo,
+                perfil_completo: perfilCompleto,
             },
         });
 

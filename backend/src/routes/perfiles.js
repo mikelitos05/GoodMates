@@ -4,6 +4,46 @@ const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken } = require('../middleware/authMiddleware');
 
+function normalizarTexto(value) {
+    return typeof value === 'string' ? value.trim() : '';
+}
+
+function normalizarHobbies(value) {
+    let parsed = [];
+
+    if (Array.isArray(value)) {
+        parsed = value;
+    } else if (typeof value === 'string') {
+        try {
+            const asJson = JSON.parse(value);
+            if (Array.isArray(asJson)) {
+                parsed = asJson;
+            } else {
+                parsed = value.split(',');
+            }
+        } catch {
+            parsed = value.split(',');
+        }
+    }
+
+    return [...new Set(parsed.map((h) => normalizarTexto(h)).filter(Boolean))];
+}
+
+function inferirPerfilCompleto({ edad, ciudad, horario, hobbies }) {
+    const edadNormalizada = Number.parseInt(edad, 10);
+    const ciudadNormalizada = normalizarTexto(ciudad);
+    const horarioNormalizado = normalizarTexto(horario);
+    const hobbiesNormalizados = normalizarHobbies(hobbies);
+
+    return (
+        Number.isFinite(edadNormalizada) &&
+        edadNormalizada > 0 &&
+        ciudadNormalizada.length > 0 &&
+        horarioNormalizado.length > 0 &&
+        hobbiesNormalizados.length > 0
+    );
+}
+
 // Obtener el perfil extendido del tenant autenticado
 router.get('/me', verificarToken, async (req, res) => {
     try {
@@ -24,10 +64,21 @@ router.get('/me', verificarToken, async (req, res) => {
         }
 
         const perfil = rows[0];
+        const perfilCompletoPersistido = !!perfil.perfil_completo;
 
         // Parsear hobbies de JSON si existe
         if (perfil.hobbies && typeof perfil.hobbies === 'string') {
             perfil.hobbies = JSON.parse(perfil.hobbies);
+        }
+
+        const perfilCompletoInferido = inferirPerfilCompleto(perfil);
+        perfil.perfil_completo = !!perfil.perfil_completo || perfilCompletoInferido;
+
+        if (perfilCompletoInferido && !perfilCompletoPersistido) {
+            await pool.query(
+                'UPDATE usuarios SET perfil_completo = TRUE WHERE id_usuario = ?',
+                [req.usuario.id]
+            );
         }
 
         res.json({
@@ -67,11 +118,14 @@ router.put('/me', verificarToken, async (req, res) => {
             [req.usuario.id]
         );
 
+        const ciudadNormalizada = normalizarTexto(ciudad);
+        const horarioNormalizado = normalizarTexto(horario);
         // Serializar hobbies a JSON para almacenar en la base de datos
-        const hobbiesJson = hobbies ? JSON.stringify(hobbies) : null;
+        const hobbiesNormalizados = normalizarHobbies(hobbies);
+        const hobbiesJson = JSON.stringify(hobbiesNormalizados);
 
         const profileFields = [
-            edad || null, presupuesto || null, ciudad || null, horario || null,
+            edad || null, presupuesto || null, ciudadNormalizada || null, horarioNormalizado || null,
             semestre || null, ocupacion || null, mascotas || false, fumador || false,
             limpieza || 3, ruido || 3, visitantes || null, hobbiesJson,
             preferencia_visitantes || null, preferencia_social || 3,
@@ -104,7 +158,12 @@ router.put('/me', verificarToken, async (req, res) => {
         }
 
         // Determinar si el perfil esta completo (campos minimos requeridos)
-        const perfilCompleto = !!(edad && ciudad && horario && hobbies && hobbies.length > 0);
+        const perfilCompleto = inferirPerfilCompleto({
+            edad,
+            ciudad: ciudadNormalizada,
+            horario: horarioNormalizado,
+            hobbies: hobbiesNormalizados,
+        });
         await pool.query(
             'UPDATE usuarios SET perfil_completo = ? WHERE id_usuario = ?',
             [perfilCompleto, req.usuario.id]

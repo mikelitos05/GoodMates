@@ -292,18 +292,14 @@ const initDatabase = async () => {
     `);
     console.log('Tabla respuestas_board verificada');
 
-    // Tabla de calificaciones (evaluaciones entre roommates)
-    // DROP necesario: esquema cambiado para incluir puntuaciones por categoria
-    await pool.query('DROP TABLE IF EXISTS calificaciones');
+    // Tabla de calificaciones (evaluaciones entre roommates/landlord)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS calificaciones (
         id_calificacion CHAR(36) PRIMARY KEY,
         id_usuario_calificador CHAR(36) NOT NULL,
         id_usuario_calificado CHAR(36) NOT NULL,
         id_propiedad CHAR(36),
-        limpieza INT NOT NULL CHECK (limpieza BETWEEN 1 AND 5),
-        convivencia INT NOT NULL CHECK (convivencia BETWEEN 1 AND 5),
-        respeto_reglas INT NOT NULL CHECK (respeto_reglas BETWEEN 1 AND 5),
+        puntuacion DECIMAL(2,1) NOT NULL CHECK (puntuacion BETWEEN 1.0 AND 5.0),
         comentario TEXT,
         fecha_calificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (id_usuario_calificador) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
@@ -315,6 +311,96 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla calificaciones verificada');
+
+    // Migracion de compatibilidad para instancias existentes con esquema anterior.
+    try {
+      await pool.query('ALTER TABLE calificaciones ADD COLUMN puntuacion DECIMAL(2,1) NULL');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando puntuacion en calificaciones:', e.message);
+      }
+    }
+    try {
+      await pool.query(`
+        UPDATE calificaciones
+        SET puntuacion = ROUND((COALESCE(limpieza, 0) + COALESCE(convivencia, 0) + COALESCE(respeto_reglas, 0)) / 3, 1)
+        WHERE puntuacion IS NULL
+          AND limpieza IS NOT NULL
+          AND convivencia IS NOT NULL
+          AND respeto_reglas IS NOT NULL
+      `);
+    } catch (e) {
+      // En instalaciones nuevas no existen las columnas legacy, ignorar.
+    }
+    try {
+      await pool.query('UPDATE calificaciones SET puntuacion = 3.0 WHERE puntuacion IS NULL');
+    } catch (e) {
+      console.error('Error normalizando puntuacion en calificaciones:', e.message);
+    }
+    for (const columnaLegacy of ['limpieza', 'convivencia', 'respeto_reglas']) {
+      try {
+        await pool.query(`ALTER TABLE calificaciones DROP COLUMN ${columnaLegacy}`);
+      } catch (e) {
+        if (!e.message.includes("Can't DROP")) {
+          console.error(`Error eliminando columna legacy ${columnaLegacy} en calificaciones:`, e.message);
+        }
+        try {
+          await pool.query(`ALTER TABLE calificaciones MODIFY COLUMN ${columnaLegacy} INT NULL`);
+        } catch (nestedError) {
+          if (!nestedError.message.includes('Unknown column')) {
+            console.error(`Error ajustando columna legacy ${columnaLegacy} en calificaciones:`, nestedError.message);
+          }
+        }
+      }
+    }
+    try {
+      await pool.query('ALTER TABLE calificaciones MODIFY COLUMN puntuacion DECIMAL(2,1) NOT NULL');
+    } catch (e) {
+      if (!e.message.includes('Data truncated')) {
+        console.error('Error ajustando columna puntuacion en calificaciones:', e.message);
+      }
+    }
+
+    // Tabla de pendientes de calificacion para landlords.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calificaciones_pendientes (
+        id_pendiente CHAR(36) PRIMARY KEY,
+        id_landlord CHAR(36) NOT NULL,
+        id_tenant CHAR(36) NOT NULL,
+        id_propiedad CHAR(36) NOT NULL,
+        motivo ENUM('salida_tenant', 'remocion_landlord') NOT NULL DEFAULT 'salida_tenant',
+        estado ENUM('pendiente', 'completada', 'omitida') NOT NULL DEFAULT 'pendiente',
+        motivo_omision TEXT,
+        fecha_evento TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_resolucion TIMESTAMP NULL,
+        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_landlord) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_tenant) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        FOREIGN KEY (id_propiedad) REFERENCES propiedades(id_propiedad) ON DELETE CASCADE,
+        INDEX idx_landlord_estado (id_landlord, estado),
+        INDEX idx_tenant (id_tenant),
+        INDEX idx_propiedad (id_propiedad)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla calificaciones_pendientes verificada');
+
+    // Tabla de calificaciones al grupo de convivencia.
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS calificaciones_grupo (
+        id_calificacion_grupo CHAR(36) PRIMARY KEY,
+        id_grupo CHAR(36) NOT NULL,
+        id_usuario_calificador CHAR(36) NOT NULL,
+        puntuacion DECIMAL(2,1) NOT NULL CHECK (puntuacion BETWEEN 1.0 AND 5.0),
+        comentario TEXT,
+        fecha_calificacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        FOREIGN KEY (id_grupo) REFERENCES grupos_roommates(id_grupo) ON DELETE CASCADE,
+        FOREIGN KEY (id_usuario_calificador) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
+        UNIQUE KEY uk_calificacion_grupo_usuario (id_grupo, id_usuario_calificador),
+        INDEX idx_grupo (id_grupo)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+    `);
+    console.log('Tabla calificaciones_grupo verificada');
 
     // Tabla de notificaciones (notificaciones dentro de la app)
     await pool.query(`

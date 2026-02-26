@@ -37,7 +37,7 @@ function ContactPage() {
                         <h2 className="contact-info-title">Información de Contacto</h2>
 
                         <div className="contact-item">
-                            <div className="contact-item-icon">✉</div>
+                            <div className="contact-item-icon">Email</div>
                             <div>
                                 <p className="contact-item-label">Correo de soporte</p>
                                 <p className="contact-item-value">soporte@goodmates.mx</p>
@@ -45,7 +45,7 @@ function ContactPage() {
                         </div>
 
                         <div className="contact-item">
-                            <div className="contact-item-icon">🔒</div>
+                            <div className="contact-item-icon">Privacidad</div>
                             <div>
                                 <p className="contact-item-label">Privacidad y datos personales</p>
                                 <p className="contact-item-value">privacidad@goodmates.mx</p>
@@ -53,7 +53,7 @@ function ContactPage() {
                         </div>
 
                         <div className="contact-item">
-                            <div className="contact-item-icon">📍</div>
+                            <div className="contact-item-icon">Ubicación</div>
                             <div>
                                 <p className="contact-item-label">Ubicación</p>
                                 <p className="contact-item-value">Monterrey, Nuevo León, México</p>
@@ -61,7 +61,7 @@ function ContactPage() {
                         </div>
 
                         <div className="contact-item">
-                            <div className="contact-item-icon">⏰</div>
+                            <div className="contact-item-icon">Horario</div>
                             <div>
                                 <p className="contact-item-label">Horario de atención</p>
                                 <p className="contact-item-value">Lunes a Viernes, 9:00 - 18:00 hrs (CST)</p>
@@ -83,7 +83,7 @@ function ContactPage() {
 
                         {sent ? (
                             <div className="contact-success animate-fade-in">
-                                <div className="contact-success-icon">✓</div>
+                                <div className="contact-success-icon">OK</div>
                                 <h3>¡Mensaje Enviado!</h3>
                                 <p>Hemos recibido tu mensaje. Te responderemos a la brevedad posible al correo electrónico proporcionado.</p>
                                 <button
@@ -166,7 +166,7 @@ function ContactPage() {
                 <div className="legal-content animate-fade-in-up" style={{ animationDelay: '0.2s', marginTop: 'var(--space-12)' }}>
                     <div className="legal-card">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">❓</div>
+                            <div className="legal-card-icon">FAQ</div>
                             <div>
                                 <h2 className="legal-card-title">Preguntas Frecuentes</h2>
                                 <p className="legal-card-subtitle">Respuestas rápidas a consultas comunes</p>

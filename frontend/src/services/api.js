@@ -21,11 +21,16 @@ const authHeaders = () => ({
     'Content-Type': 'application/json',
 });
 
+const optionalAuthHeaders = () => {
+    const token = getToken();
+    return token ? { 'Authorization': `Bearer ${token}` } : {};
+};
+
 // Manejar la respuesta de la API de forma unificada
 const handleResponse = async (response) => {
     const data = await response.json();
     if (!response.ok) {
-        return { success: false, error: data.message, code: data.code };
+        return { success: false, error: data.message, code: data.code, ...data };
     }
     return { success: true, ...data };
 };
@@ -125,14 +130,14 @@ export const getProperties = async (filters = {}) => {
     if (filters.limite) params.append('limite', filters.limite);
 
     return await apiRequest(`${API_URL}/propiedades?${params.toString()}`, {
-        headers: authHeaders(),
+        headers: optionalAuthHeaders(),
     });
 };
 
 // Obtener detalle de una propiedad
 export const getPropertyById = async (id) => {
     return await apiRequest(`${API_URL}/propiedades/${id}`, {
-        headers: authHeaders(),
+        headers: optionalAuthHeaders(),
     });
 };
 
@@ -455,6 +460,31 @@ export const rateRoommate = async (ratingData) => {
 export const getUserRatings = async (userId) => {
     return await apiRequest(`${API_URL}/calificaciones/usuario/${userId}`, {
         headers: authHeaders(),
+    });
+};
+
+// Crear o actualizar calificacion de grupo
+export const rateGroup = async (groupData) => {
+    return await apiRequest(`${API_URL}/calificaciones/grupo`, {
+        method: 'POST',
+        headers: authHeaders(),
+        body: JSON.stringify(groupData),
+    });
+};
+
+// Obtener pendientes de calificacion del landlord autenticado
+export const getPendingRatings = async () => {
+    return await apiRequest(`${API_URL}/calificaciones/pendientes`, {
+        headers: authHeaders(),
+    });
+};
+
+// Omitir un pendiente de calificacion con justificacion
+export const omitPendingRating = async (pendingId, motivo_omision) => {
+    return await apiRequest(`${API_URL}/calificaciones/pendientes/${pendingId}/omitir`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ motivo_omision }),
     });
 };
 

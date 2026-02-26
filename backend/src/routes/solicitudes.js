@@ -9,6 +9,9 @@ const {
     validarConsistenciaConvivenciaActiva,
     enviarErrorRegla,
 } = require('../services/convivenciaRules');
+const {
+    obtenerResumenPendientesCalificacionLandlord,
+} = require('../services/ratingsService');
 
 async function obtenerTituloPropiedad(executor, idPropiedad) {
     const [rows] = await executor.query(
@@ -80,6 +83,76 @@ async function agregarTenantAGrupo(connection, idGrupo, idTenant) {
             'INSERT INTO miembros_grupo (id_miembro, id_grupo, id_usuario, rol_en_grupo) VALUES (?, ?, ?, ?)',
             [idMiembro, idGrupo, idTenant, 'miembro']
         );
+        return true;
+    }
+
+    return false;
+}
+
+async function bloquearPropiedadYValidarCapacidad(connection, idPropiedad) {
+    const [propRows] = await connection.query(
+        `SELECT id_propiedad, titulo, habitaciones, habitaciones_disponibles, disponible
+         FROM propiedades
+         WHERE id_propiedad = ?
+         FOR UPDATE`,
+        [idPropiedad]
+    );
+
+    if (propRows.length === 0) {
+        throw construirErrorRegla('PROPERTY_NOT_FOUND', 'La propiedad no existe', 404);
+    }
+
+    const propiedad = propRows[0];
+    const habitaciones = Number(propiedad.habitaciones);
+    const disponibles = Number(propiedad.habitaciones_disponibles);
+
+    if (!Number.isFinite(habitaciones) || habitaciones <= 0) {
+        throw construirErrorRegla(
+            'INVALID_PROPERTY_CAPACITY',
+            'La propiedad tiene una capacidad total invalida',
+            409
+        );
+    }
+
+    if (!Number.isFinite(disponibles) || disponibles < 0 || disponibles > habitaciones) {
+        throw construirErrorRegla(
+            'INVALID_PROPERTY_CAPACITY',
+            'La propiedad tiene un estado de habitaciones disponibles inconsistente',
+            409
+        );
+    }
+
+    return {
+        ...propiedad,
+        habitaciones,
+        habitaciones_disponibles: disponibles,
+    };
+}
+
+async function decrementarHabitacionDisponible(connection, idPropiedad) {
+    const propiedad = await bloquearPropiedadYValidarCapacidad(connection, idPropiedad);
+
+    if (!propiedad.disponible || propiedad.habitaciones_disponibles <= 0) {
+        throw construirErrorRegla(
+            'PROPERTY_NO_AVAILABILITY',
+            'La propiedad ya no tiene habitaciones disponibles',
+            409
+        );
+    }
+
+    const [result] = await connection.query(
+        `UPDATE propiedades
+         SET habitaciones_disponibles = habitaciones_disponibles - 1
+         WHERE id_propiedad = ? AND habitaciones_disponibles > 0`,
+        [idPropiedad]
+    );
+
+    if (result.affectedRows === 0) {
+        throw construirErrorRegla(
+            'PROPERTY_NO_AVAILABILITY',
+            'La propiedad ya no tiene habitaciones disponibles',
+            409
+        );
     }
 }
 
@@ -93,7 +166,9 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
         }
 
         const [propRows] = await pool.query(
-            'SELECT id_propiedad, id_landlord, titulo FROM propiedades WHERE id_propiedad = ?',
+            `SELECT id_propiedad, id_landlord, titulo, disponible, habitaciones_disponibles
+             FROM propiedades
+             WHERE id_propiedad = ?`,
             [id_propiedad]
         );
 
@@ -102,6 +177,14 @@ router.post('/', verificarToken, verificarRol('tenant'), async (req, res) => {
         }
 
         const propiedad = propRows[0];
+        if (!propiedad.disponible || Number(propiedad.habitaciones_disponibles) <= 0) {
+            throw construirErrorRegla(
+                'PROPERTY_NO_AVAILABILITY',
+                'La propiedad ya no tiene habitaciones disponibles',
+                409
+            );
+        }
+
         const contextoTenant = await getTenantConvivenciaContext(pool, req.usuario.id);
         validarConsistenciaConvivenciaActiva(contextoTenant);
 
@@ -335,6 +418,17 @@ router.put('/:id/confirmar', verificarToken, verificarRol('landlord'), async (re
         const { id } = req.params;
         await connection.beginTransaction();
 
+        const pendientes = await obtenerResumenPendientesCalificacionLandlord(connection, req.usuario.id);
+        if (pendientes.total > 0) {
+            const errorPendientes = construirErrorRegla(
+                'LANDLORD_PENDING_RATINGS',
+                'Tienes calificaciones pendientes por resolver antes de confirmar nuevos inquilinos',
+                409
+            );
+            errorPendientes.pendingRatings = pendientes;
+            throw errorPendientes;
+        }
+
         const [rows] = await connection.query(
             `SELECT *
              FROM solicitudes_informes
@@ -366,8 +460,13 @@ router.put('/:id/confirmar', verificarToken, verificarRol('landlord'), async (re
             );
         }
 
+        await bloquearPropiedadYValidarCapacidad(connection, solicitud.id_propiedad);
         const idGrupo = await obtenerOCrearGrupoActivoPorPropiedad(connection, solicitud.id_propiedad);
-        await agregarTenantAGrupo(connection, idGrupo, solicitud.id_tenant);
+        const agregado = await agregarTenantAGrupo(connection, idGrupo, solicitud.id_tenant);
+
+        if (agregado) {
+            await decrementarHabitacionDisponible(connection, solicitud.id_propiedad);
+        }
 
         await connection.query(
             'UPDATE solicitudes_informes SET estado = ? WHERE id_solicitud = ?',

@@ -9,7 +9,18 @@ function MatchesPage() {
     const [activeTab, setActiveTab] = useState('discover'); // 'discover' | 'pending'
     const [requestingId, setRequestingId] = useState(null);
 
-    // Fetch all tenants with compatibility
+    const normalizeMatch = (m) => ({
+        ...m,
+        id_match: m.id_match || m.id || null,
+        estado: m.estado || m.status || 'pendiente',
+        porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
+        usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
+        ciudad: m.ciudad || m.matchedUserCity || '',
+        edad: m.edad || m.matchedUserAge || '',
+        hobbies: Array.isArray(m.hobbies) ? m.hobbies : [],
+        calificacion_promedio: m.calificacion_promedio ?? null,
+        total_calificaciones: Number(m.total_calificaciones || 0),
+    });
     useEffect(() => {
         const fetchData = async () => {
             setLoading(true);
@@ -19,16 +30,18 @@ function MatchesPage() {
             ]);
 
             if (tenantsResult.success) {
-                setTenants(tenantsResult.tenants || []);
+                const normalizados = (tenantsResult.tenants || []).map((tenant) => ({
+                    ...tenant,
+                    match_estado: tenant.match_estado || tenant.match?.estado || null,
+                    grupo_propiedad: tenant.grupo_propiedad || tenant.grupo?.titulo_propiedad || null,
+                    calificacion_promedio: tenant.calificacion_promedio ?? null,
+                    total_calificaciones: Number(tenant.total_calificaciones || 0),
+                }));
+                setTenants(normalizados);
             }
 
             if (matchesResult.success) {
-                const normalizados = (matchesResult.matches || []).map((m) => ({
-                    ...m,
-                    estado: m.estado || m.status || 'pendiente',
-                    porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
-                    usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
-                }));
+                const normalizados = (matchesResult.matches || []).map(normalizeMatch);
                 setPendingMatches(normalizados);
             }
 
@@ -55,6 +68,11 @@ function MatchesPage() {
 
     const handleMatchAction = async (matchId, action) => {
         const fn = action === 'accepted' ? acceptMatch : rejectMatch;
+        if (!matchId) {
+            alert('No fue posible procesar el match por un ID inválido');
+            return;
+        }
+
         const result = await fn(matchId);
         if (result.success) {
             setPendingMatches((prev) =>
@@ -157,6 +175,11 @@ function MatchesPage() {
                             const compatibility = tenant.compatibilidad || 0;
                             const inGroup = !!tenant.grupo_propiedad;
                             const matchEstado = tenant.match_estado;
+                            const ratingRaw = tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
+                                ? Number(tenant.calificacion_promedio)
+                                : null;
+                            const ratingPromedio = Number.isFinite(ratingRaw) ? ratingRaw : null;
+                            const ratingCount = Number(tenant.total_calificaciones || 0);
 
                             return (
                                 <div key={tenant.id_usuario} className="match-card animate-fade-in-up">
@@ -188,7 +211,7 @@ function MatchesPage() {
                                             <h3 className="match-name">{fullName}</h3>
                                             {inGroup && (
                                                 <span className="badge badge-accent" title={`En propiedad: ${tenant.grupo_propiedad}`}>
-                                                    🏠 En propiedad
+                                                    En propiedad
                                                 </span>
                                             )}
                                         </div>
@@ -200,6 +223,11 @@ function MatchesPage() {
                                             {edad && `${edad} años`}
                                             {ciudad && ` · ${ciudad}`}
                                             {horario && ` · ${horario}`}
+                                        </p>
+                                        <p className="match-detail match-rating-detail">
+                                            {ratingPromedio !== null && ratingCount > 0
+                                                ? `Calificación: ${ratingPromedio.toFixed(1)} (${ratingCount})`
+                                                : 'Calificación: Sin calificaciones'}
                                         </p>
                                         <div className="match-tags">
                                             {Array.isArray(hobbies) &&
@@ -249,6 +277,11 @@ function MatchesPage() {
                             const nombre = match.usuario_nombre || 'Usuario';
                             const compatibility = match.porcentaje_compatibilidad || 0;
                             const status = match.estado || 'pendiente';
+                            const ratingRaw = match.calificacion_promedio !== null && match.calificacion_promedio !== undefined
+                                ? Number(match.calificacion_promedio)
+                                : null;
+                            const ratingPromedio = Number.isFinite(ratingRaw) ? ratingRaw : null;
+                            const ratingCount = Number(match.total_calificaciones || 0);
 
                             return (
                                 <div
@@ -284,6 +317,11 @@ function MatchesPage() {
                                         <p className="match-detail">
                                             {match.ciudad && `${match.ciudad}`}
                                             {match.edad && ` · ${match.edad} años`}
+                                        </p>
+                                        <p className="match-detail match-rating-detail">
+                                            {ratingPromedio !== null && ratingCount > 0
+                                                ? `Calificación: ${ratingPromedio.toFixed(1)} (${ratingCount})`
+                                                : 'Calificación: Sin calificaciones'}
                                         </p>
                                     </div>
 

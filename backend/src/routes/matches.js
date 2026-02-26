@@ -3,27 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
-
-// ─── Career category map for compatibility scoring ───
-const careerCategoryMap = {};
-const careerCategories = [
-    ['Ciencias Sociales, Derecho y Humanidades', ['Administración y gestión de empresas', 'Contabilidad', 'Finanzas', 'Mercadotecnia', 'Economía', 'Psicología', 'Sociología', 'Ciencias políticas', 'Antropología', 'Trabajo social', 'Derecho', 'Comunicación', 'Periodismo', 'Historia', 'Filosofía', 'Lingüística', 'Letras', 'Educación', 'Pedagogía', 'Relaciones Internacionales', 'Recursos Humanos', 'Administración Pública']],
-    ['Ciencias Naturales y Exactas', ['Biología', 'Bioquímica', 'Química', 'Física', 'Matemáticas', 'Ciencia de Datos', 'Ciencias ambientales', 'Nutrición', 'Biotecnología', 'Ciencia de materiales', 'Forense', 'Agroforestales', 'Agrogenómica', 'Ciencia de la tierra']],
-    ['Ingenierías y Tecnología', ['Ingeniería Civil', 'Ingeniería Industrial', 'Ingeniería Mecánica', 'Ingeniería Eléctrica', 'Ingeniería Electrónica', 'Ingeniería Química', 'Ingeniería Ambiental', 'Ingeniería de Software / Informática', 'Ingeniería Biomédica', 'Ingeniería en Sistemas Computacionales', 'Ingeniería Mecatrónica', 'Ingeniería de Alimentos', 'Sistemas de Información', 'Tecnología de la Información', 'Robótica']],
-    ['Arquitectura, Construcción y Diseño', ['Arquitectura', 'Arquitectura de interiores', 'Diseño Industrial', 'Diseño gráfico', 'Diseño de moda', 'Urbanismo', 'Planeación territorial']],
-    ['Ciencias de la Salud', ['Medicina', 'Enfermería', 'Fisioterapia', 'Odontología', 'Farmacia', 'Psicología clínica', 'Biomedicina', 'Salud pública', 'Nutrición humana', 'Veterinaria']],
-    ['Artes y Creatividad', ['Artes visuales', 'Música', 'Teatro', 'Danza', 'Cine y medios audiovisuales', 'Producción musical', 'Artes plásticas']],
-    ['Administración, Negocio y Economía', ['Administración de negocios', 'Comercio internacional', 'Finanzas y banca', 'Contabilidad pública', 'Emprendimiento empresarial', 'Marketing digital', 'Gestión empresarial', 'Administración turística']],
-    ['Tecnologías Aplicadas', ['Desarrollo de software', 'Analista programador', 'Inteligencia artificial', 'Ciberseguridad', 'Big Data', 'Multimedia digital', 'Animación digital']],
-    ['Agronomía y Ciencias del Medio Ambiente', ['Agronomía', 'Ingeniería forestal', 'Agricultura sustentable', 'Gestión ambiental', 'Recursos naturales']],
-    ['Especialidades Técnicas y Profesionales', ['Arquitectura técnica', 'Electromecánica', 'Telecomunicaciones', 'Logística', 'Calidad e innovación', 'Gestión de proyectos']],
-    ['Áreas Misceláneas o Transversales', ['Ciencias religiosas', 'Ciencias teológicas', 'Turismo', 'Hotelería', 'Deportes y educación física', 'Gastronomía', 'Idiomas y traducción']],
-];
-for (const [cat, careers] of careerCategories) {
-    for (const c of careers) {
-        careerCategoryMap[c] = cat;
-    }
-}
+const { calcularCompatibilidad, parseHobbies } = require('../services/compatibilityService');
 
 // ─── Obtener todos los tenants con compatibilidad calculada en tiempo real ───
 router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, res) => {
@@ -48,8 +28,16 @@ router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, r
         // Obtener todos los otros tenants activos con perfil completo
         const [otrosTenants] = await pool.query(
             `SELECT p.*, u.id_usuario, u.nombre, u.apellido, u.carrera, u.universidad, u.biografia
+                    , cr.calificacion_promedio, cr.total_calificaciones
              FROM perfiles p
              JOIN usuarios u ON p.id_usuario = u.id_usuario
+             LEFT JOIN (
+                SELECT id_usuario_calificado,
+                       ROUND(AVG(puntuacion), 1) AS calificacion_promedio,
+                       COUNT(*) AS total_calificaciones
+                FROM calificaciones
+                GROUP BY id_usuario_calificado
+             ) cr ON cr.id_usuario_calificado = u.id_usuario
              WHERE u.id_usuario != ? AND u.rol = 'tenant' AND u.estado_cuenta = 'activo' AND u.perfil_completo = TRUE`,
             [req.usuario.id]
         );
@@ -120,6 +108,10 @@ router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, r
                 biografia: otro.biografia,
                 hobbies: hobbies.slice(0, 5),
                 compatibilidad,
+                calificacion_promedio: otro.calificacion_promedio !== null && otro.calificacion_promedio !== undefined
+                    ? Number(otro.calificacion_promedio)
+                    : null,
+                total_calificaciones: Number(otro.total_calificaciones || 0),
                 en_grupo: !!grupo,
                 grupo: grupo ? {
                     nombre: grupo.nombre_grupo,
@@ -156,12 +148,30 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
               u1.nombre as nombre_1, u1.apellido as apellido_1,
               u2.nombre as nombre_2, u2.apellido as apellido_2,
               p1.ciudad as ciudad_1, p1.hobbies as hobbies_1, p1.edad as edad_1,
-              p2.ciudad as ciudad_2, p2.hobbies as hobbies_2, p2.edad as edad_2
+              p2.ciudad as ciudad_2, p2.hobbies as hobbies_2, p2.edad as edad_2,
+              r1.calificacion_promedio AS calificacion_promedio_1,
+              r1.total_calificaciones AS total_calificaciones_1,
+              r2.calificacion_promedio AS calificacion_promedio_2,
+              r2.total_calificaciones AS total_calificaciones_2
        FROM matches m
        JOIN usuarios u1 ON m.id_usuario_1 = u1.id_usuario
        JOIN usuarios u2 ON m.id_usuario_2 = u2.id_usuario
        LEFT JOIN perfiles p1 ON u1.id_usuario = p1.id_usuario
        LEFT JOIN perfiles p2 ON u2.id_usuario = p2.id_usuario
+       LEFT JOIN (
+          SELECT id_usuario_calificado,
+                 ROUND(AVG(puntuacion), 1) AS calificacion_promedio,
+                 COUNT(*) AS total_calificaciones
+          FROM calificaciones
+          GROUP BY id_usuario_calificado
+       ) r1 ON r1.id_usuario_calificado = m.id_usuario_1
+       LEFT JOIN (
+          SELECT id_usuario_calificado,
+                 ROUND(AVG(puntuacion), 1) AS calificacion_promedio,
+                 COUNT(*) AS total_calificaciones
+          FROM calificaciones
+          GROUP BY id_usuario_calificado
+       ) r2 ON r2.id_usuario_calificado = m.id_usuario_2
        WHERE m.id_usuario_1 = ? OR m.id_usuario_2 = ?
        ORDER BY m.porcentaje_compatibilidad DESC`,
             [req.usuario.id, req.usuario.id]
@@ -169,19 +179,35 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
 
         const matchesFormateados = matches.map(m => {
             const esUsuario1 = m.id_usuario_1 === req.usuario.id;
+            const nombre = esUsuario1
+                ? `${m.nombre_2} ${m.apellido_2}`
+                : `${m.nombre_1} ${m.apellido_1}`;
+            const ciudad = esUsuario1 ? m.ciudad_2 : m.ciudad_1;
+            const edad = esUsuario1 ? m.edad_2 : m.edad_1;
+            const porcentaje = m.porcentaje_compatibilidad;
+            const estado = m.estado;
+            const rating = esUsuario1 ? m.calificacion_promedio_2 : m.calificacion_promedio_1;
+            const totalCalificaciones = esUsuario1 ? m.total_calificaciones_2 : m.total_calificaciones_1;
+
             return {
                 id: m.id_match,
+                id_match: m.id_match,
                 matchedUserId: esUsuario1 ? m.id_usuario_2 : m.id_usuario_1,
-                matchedUserName: esUsuario1
-                    ? `${m.nombre_2} ${m.apellido_2}`
-                    : `${m.nombre_1} ${m.apellido_1}`,
+                matchedUserName: nombre,
                 matchedUserAvatar: esUsuario1
                     ? (m.nombre_2[0] + m.apellido_2[0]).toUpperCase()
                     : (m.nombre_1[0] + m.apellido_1[0]).toUpperCase(),
-                matchedUserCity: esUsuario1 ? m.ciudad_2 : m.ciudad_1,
-                matchedUserAge: esUsuario1 ? m.edad_2 : m.edad_1,
-                compatibility: m.porcentaje_compatibilidad,
-                status: m.estado,
+                matchedUserCity: ciudad,
+                matchedUserAge: edad,
+                compatibility: porcentaje,
+                porcentaje_compatibilidad: porcentaje,
+                status: estado,
+                estado,
+                usuario_nombre: nombre,
+                ciudad,
+                edad,
+                calificacion_promedio: rating !== null && rating !== undefined ? Number(rating) : null,
+                total_calificaciones: Number(totalCalificaciones || 0),
                 createdAt: m.fecha_creacion,
             };
         });
@@ -411,11 +437,15 @@ router.post('/calcular', verificarToken, verificarRol('tenant'), async (req, res
 
                     matchesGenerados.push({
                         id: id_match,
+                        id_match,
                         matchedUserId: otro.id_usuario,
                         matchedUserName: `${otro.nombre} ${otro.apellido}`,
                         matchedUserAvatar: (otro.nombre[0] + otro.apellido[0]).toUpperCase(),
                         compatibility: compatibilidad,
+                        porcentaje_compatibilidad: compatibilidad,
                         status: 'pendiente',
+                        estado: 'pendiente',
+                        usuario_nombre: `${otro.nombre} ${otro.apellido}`,
                     });
                 } else {
                     await pool.query(
@@ -441,148 +471,5 @@ router.post('/calcular', verificarToken, verificarRol('tenant'), async (req, res
         });
     }
 });
-
-// ═══════════════════════════════════════════════════════════════════
-// ALGORITMO DE COMPATIBILIDAD
-// Compara los perfiles de dos tenants y devuelve un porcentaje 0-100
-// ═══════════════════════════════════════════════════════════════════
-function calcularCompatibilidad(perfil1, perfil2) {
-    let puntos = 0;
-    let maxPuntos = 0;
-
-    // 1. Ciudad (peso: 15 puntos)
-    maxPuntos += 15;
-    if (perfil1.ciudad && perfil2.ciudad) {
-        if (perfil1.ciudad.toLowerCase() === perfil2.ciudad.toLowerCase()) {
-            puntos += 15;
-        }
-    }
-
-    // 2. Presupuesto (peso: 10 puntos)
-    maxPuntos += 10;
-    if (perfil1.presupuesto && perfil2.presupuesto) {
-        const diff = Math.abs(perfil1.presupuesto - perfil2.presupuesto);
-        const promedio = (Number(perfil1.presupuesto) + Number(perfil2.presupuesto)) / 2;
-        if (promedio > 0) {
-            const porcentajeDiff = diff / promedio;
-            if (porcentajeDiff <= 0.1) puntos += 10;
-            else if (porcentajeDiff <= 0.25) puntos += 7;
-            else if (porcentajeDiff <= 0.5) puntos += 4;
-        }
-    }
-
-    // 3. Horario (peso: 10 puntos)
-    maxPuntos += 10;
-    if (perfil1.horario && perfil2.horario) {
-        if (perfil1.horario === perfil2.horario) {
-            puntos += 10;
-        } else if (perfil1.horario === 'Mixto' || perfil2.horario === 'Mixto') {
-            puntos += 7;
-        }
-    }
-
-    // 4. Limpieza (peso: 10 puntos)
-    maxPuntos += 10;
-    if (perfil1.limpieza && perfil2.limpieza) {
-        const diff = Math.abs(perfil1.limpieza - perfil2.limpieza);
-        if (diff === 0) puntos += 10;
-        else if (diff === 1) puntos += 7;
-        else if (diff === 2) puntos += 4;
-    }
-
-    // 5. Fumador (peso: 8 puntos)
-    maxPuntos += 8;
-    if (perfil1.fumador === perfil2.fumador) {
-        puntos += 8;
-    }
-
-    // 6. Preferencia de visitantes (peso: 8 puntos)
-    maxPuntos += 8;
-    if (perfil1.preferencia_visitantes && perfil2.preferencia_visitantes) {
-        if (perfil1.preferencia_visitantes === perfil2.preferencia_visitantes) {
-            puntos += 8;
-        } else {
-            // Partial match
-            puntos += 3;
-        }
-    }
-
-    // 7. Preferencia social (peso: 8 puntos)
-    maxPuntos += 8;
-    if (perfil1.preferencia_social && perfil2.preferencia_social) {
-        const diff = Math.abs(perfil1.preferencia_social - perfil2.preferencia_social);
-        if (diff === 0) puntos += 8;
-        else if (diff === 1) puntos += 6;
-        else if (diff === 2) puntos += 3;
-    }
-
-    // 8. Preferencia de ruido (peso: 8 puntos)
-    maxPuntos += 8;
-    if (perfil1.preferencia_ruido && perfil2.preferencia_ruido) {
-        const diff = Math.abs(perfil1.preferencia_ruido - perfil2.preferencia_ruido);
-        if (diff === 0) puntos += 8;
-        else if (diff === 1) puntos += 6;
-        else if (diff === 2) puntos += 3;
-    }
-
-    // 9. Preferencia de mascotas (peso: 8 puntos)
-    maxPuntos += 8;
-    if (perfil1.preferencia_mascotas && perfil2.preferencia_mascotas) {
-        if (perfil1.preferencia_mascotas === perfil2.preferencia_mascotas) {
-            puntos += 8;
-        } else {
-            // Alérgico vs tiene mascotas = 0 puntos
-            const alergico = [perfil1.preferencia_mascotas, perfil2.preferencia_mascotas];
-            if (alergico.includes('Soy alérgico') && alergico.includes('Me gustan')) {
-                puntos += 0;
-            } else if (alergico.includes('No me importan')) {
-                puntos += 5;
-            } else {
-                puntos += 2;
-            }
-        }
-    }
-
-    // 10. Carrera - misma categoría (peso: 8 puntos)
-    maxPuntos += 8;
-    if (perfil1.carrera && perfil2.carrera) {
-        const cat1 = careerCategoryMap[perfil1.carrera];
-        const cat2 = careerCategoryMap[perfil2.carrera];
-        if (perfil1.carrera === perfil2.carrera) {
-            puntos += 8; // Misma carrera
-        } else if (cat1 && cat2 && cat1 === cat2) {
-            puntos += 5; // Misma categoría
-        }
-    }
-
-    // 11. Hobbies en común (peso: 15 puntos)
-    const hobbies1 = parseHobbies(perfil1.hobbies);
-    const hobbies2 = parseHobbies(perfil2.hobbies);
-    if (hobbies1.length > 0 && hobbies2.length > 0) {
-        maxPuntos += 15;
-        const comunes = hobbies1.filter(h => hobbies2.includes(h)).length;
-        const totalUnicos = new Set([...hobbies1, ...hobbies2]).size;
-        const ratio = totalUnicos > 0 ? comunes / totalUnicos : 0;
-        puntos += Math.round(ratio * 15);
-    }
-
-    // Calcular porcentaje final
-    if (maxPuntos === 0) return 50;
-    return Math.round((puntos / maxPuntos) * 100);
-}
-
-// Funcion auxiliar para parsear hobbies de diferentes formatos
-function parseHobbies(hobbies) {
-    if (!hobbies) return [];
-    if (Array.isArray(hobbies)) return hobbies;
-    if (typeof hobbies === 'string') {
-        try { return JSON.parse(hobbies); } catch { return []; }
-    }
-    return [];
-}
-
-// Exportar calcularCompatibilidad para uso en propiedades.js
-router.calcularCompatibilidad = calcularCompatibilidad;
-router.parseHobbies = parseHobbies;
 
 module.exports = router;

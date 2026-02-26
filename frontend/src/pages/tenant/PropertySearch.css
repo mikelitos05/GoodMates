@@ -366,6 +366,12 @@
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
+.property-match-badge--na {
+    color: var(--text-dark);
+    text-shadow: none;
+    border: 1px solid var(--neutral-300);
+}
+
 .property-location {
     font-size: var(--font-xs);
     color: var(--text-dark-secondary);
@@ -376,6 +382,13 @@
     gap: var(--space-3);
     font-size: var(--font-xs);
     color: var(--text-muted);
+}
+
+.property-rating-summary {
+    margin: 0;
+    font-size: var(--font-xs);
+    color: var(--text-dark-secondary);
+    font-weight: 600;
 }
 
 .property-amenities-preview {
@@ -440,6 +453,12 @@
     font-weight: 700;
     margin-top: 6px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.map-popup-match--na {
+    color: var(--text-dark);
+    text-shadow: none;
+    border: 1px solid var(--neutral-300);
 }
 
 .map-popup-link {

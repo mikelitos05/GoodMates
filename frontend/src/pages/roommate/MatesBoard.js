@@ -112,7 +112,7 @@ function MatesBoard() {
                         <p className="section-subtitle">Comparte avisos, noticias e invitaciones con tus roommates.</p>
                     </div>
                     <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                        {showForm ? '✕ Cancelar' : 'Nueva Publicación'}
+                        {showForm ? 'Cancelar' : 'Nueva Publicación'}
                     </button>
                 </div>
 

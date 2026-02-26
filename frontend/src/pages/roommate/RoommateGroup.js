@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getMyGroup, removeGroupMember } from '../../services/api';
+import { getMyGroup, removeGroupMember, rateGroup, rateRoommate } from '../../services/api';
+import RatingModal from '../../components/shared/RatingModal';
 import './RoommateGroup.css';
 
 function RoommateGroup() {
@@ -10,8 +11,12 @@ function RoommateGroup() {
     const [loading, setLoading] = useState(true);
     const [leaving, setLeaving] = useState(false);
     const [feedback, setFeedback] = useState('');
+    const [ratingTarget, setRatingTarget] = useState(null);
+    const [ratingSubmitting, setRatingSubmitting] = useState(false);
+    const [groupRatingOpen, setGroupRatingOpen] = useState(false);
+    const [groupRatingSubmitting, setGroupRatingSubmitting] = useState(false);
 
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         setLoading(true);
         const groupRes = await getMyGroup();
         if (groupRes.success && groupRes.grupo) {
@@ -20,11 +25,11 @@ function RoommateGroup() {
             setGroup(null);
         }
         setLoading(false);
-    };
+    }, []);
 
     useEffect(() => {
         fetchData();
-    }, []);
+    }, [fetchData]);
 
     if (loading) {
         return (
@@ -57,6 +62,15 @@ function RoommateGroup() {
     const propAddress = property?.direccion || property?.address || '';
     const propCity = property?.ciudad || property?.city || '';
     const propPrice = property?.precio || property?.price || 0;
+    const groupAvgRaw = group.calificacionGrupoPromedio !== null && group.calificacionGrupoPromedio !== undefined
+        ? Number(group.calificacionGrupoPromedio)
+        : null;
+    const groupAvg = Number.isFinite(groupAvgRaw) ? groupAvgRaw : null;
+    const groupRatingCount = Number(group.calificacionGrupoTotal || 0);
+    const myGroupRatingRaw = group.miCalificacionGrupo !== null && group.miCalificacionGrupo !== undefined
+        ? Number(group.miCalificacionGrupo)
+        : null;
+    const myGroupRating = Number.isFinite(myGroupRatingRaw) ? myGroupRatingRaw : null;
 
     const handleLeaveGroup = async () => {
         if (!group?.id || !user?.id || leaving) return;
@@ -79,6 +93,55 @@ function RoommateGroup() {
         setLeaving(false);
     };
 
+    const closeRatingModal = () => {
+        if (ratingSubmitting) return;
+        setRatingTarget(null);
+    };
+
+    const handleSubmitRating = async ({ puntuacion, comentario }) => {
+        if (!ratingTarget?.id) return false;
+
+        setRatingSubmitting(true);
+        const result = await rateRoommate({
+            id_usuario_calificado: ratingTarget.id,
+            puntuacion,
+            comentario,
+        });
+        setRatingSubmitting(false);
+
+        if (!result.success) {
+            setFeedback(result.error || 'No se pudo guardar la calificación.');
+            return false;
+        }
+
+        setFeedback(result.message || 'Calificación guardada correctamente.');
+        setRatingTarget(null);
+        await fetchData();
+        return true;
+    };
+
+    const handleSubmitGroupRating = async ({ puntuacion, comentario }) => {
+        if (!group?.id) return false;
+
+        setGroupRatingSubmitting(true);
+        const result = await rateGroup({
+            id_grupo: group.id,
+            puntuacion,
+            comentario,
+        });
+        setGroupRatingSubmitting(false);
+
+        if (!result.success) {
+            setFeedback(result.error || 'No se pudo guardar la calificación del grupo.');
+            return false;
+        }
+
+        setFeedback(result.message || 'Calificación del grupo guardada correctamente.');
+        setGroupRatingOpen(false);
+        await fetchData();
+        return true;
+    };
+
     return (
         <div className="group-page">
             <div className="container">
@@ -89,6 +152,12 @@ function RoommateGroup() {
                             {propTitle ? propTitle : 'Grupo de roommates'}
                             {group.fecha_creacion ? ` · Creado el ${group.fecha_creacion.split('T')[0]}` : ''}
                         </p>
+                        <p className="section-subtitle group-rating-header">
+                            {groupAvg !== null && groupRatingCount > 0
+                                ? `Calificación del grupo: ${groupAvg.toFixed(1)} (${groupRatingCount})`
+                                : 'Calificación del grupo: Sin calificaciones'}
+                            {myGroupRating !== null && ` · Tu calificación: ${myGroupRating.toFixed(1)}`}
+                        </p>
                         {feedback && (
                             <p className="section-subtitle" style={{ marginTop: '8px' }}>
                                 {feedback}
@@ -97,6 +166,15 @@ function RoommateGroup() {
                     </div>
                     <button className="btn btn-danger" onClick={handleLeaveGroup} disabled={leaving}>
                         {leaving ? 'Saliendo...' : 'Salir del Grupo'}
+                    </button>
+                </div>
+                <div className="group-rating-actions">
+                    <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => setGroupRatingOpen(true)}
+                    >
+                        {myGroupRating !== null ? 'Editar calificación del grupo' : 'Calificar grupo'}
                     </button>
                 </div>
 
@@ -109,6 +187,15 @@ function RoommateGroup() {
                                 const memberId = member.id;
                                 const fullName = member.nombre || '';
                                 const initials = member.avatar || (fullName[0] || '??');
+                                const promedioRaw = member.calificacionPromedio !== null && member.calificacionPromedio !== undefined
+                                    ? Number(member.calificacionPromedio)
+                                    : null;
+                                const calificacionPromedio = Number.isFinite(promedioRaw) ? promedioRaw : null;
+                                const totalCalificaciones = Number(member.totalCalificaciones || 0);
+                                const miRaw = member.miCalificacion !== null && member.miCalificacion !== undefined
+                                    ? Number(member.miCalificacion)
+                                    : null;
+                                const miCalificacion = Number.isFinite(miRaw) ? miRaw : null;
                                 return (
                                     <div key={memberId} className="member-card">
                                         <div className="avatar avatar-lg">{initials}</div>
@@ -117,6 +204,31 @@ function RoommateGroup() {
                                                 {fullName} {memberId === user?.id && <span className="you-badge">(Tú)</span>}
                                             </h3>
                                             <p className="member-detail">{member.rol === 'creador' ? 'Creador del grupo' : 'Miembro'}</p>
+                                            <p className="member-rating">
+                                                {calificacionPromedio !== null && calificacionPromedio !== undefined
+                                                    ? `Calificación promedio: ${Number(calificacionPromedio).toFixed(1)} (${totalCalificaciones})`
+                                                    : 'Calificación promedio: Sin calificaciones'}
+                                            </p>
+                                            {memberId !== user?.id && (
+                                                <div className="member-rating-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="btn btn-outline btn-sm"
+                                                        onClick={() => setRatingTarget({
+                                                            id: memberId,
+                                                            nombre: fullName,
+                                                            miCalificacion,
+                                                        })}
+                                                    >
+                                                        {miCalificacion !== null && miCalificacion !== undefined
+                                                            ? 'Editar mi calificación'
+                                                            : 'Calificar'}
+                                                    </button>
+                                                    {miCalificacion !== null && miCalificacion !== undefined && (
+                                                        <span className="member-my-rating">Tu calificación: {Number(miCalificacion).toFixed(1)}</span>
+                                                    )}
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 );
@@ -162,6 +274,34 @@ function RoommateGroup() {
                     </div>
                 </div>
             </div>
+
+            <RatingModal
+                isOpen={!!ratingTarget}
+                title="Calificar roommate"
+                subjectName={ratingTarget?.nombre || 'roommate'}
+                initialScore={ratingTarget?.miCalificacion ?? ''}
+                submitting={ratingSubmitting}
+                submitLabel={ratingTarget?.miCalificacion !== null && ratingTarget?.miCalificacion !== undefined
+                    ? 'Actualizar calificación'
+                    : 'Guardar calificación'}
+                onClose={closeRatingModal}
+                onSubmit={handleSubmitRating}
+            />
+
+            <RatingModal
+                isOpen={groupRatingOpen}
+                title="Calificar grupo"
+                subjectName={group.nombre || 'grupo'}
+                initialScore={myGroupRating ?? ''}
+                submitting={groupRatingSubmitting}
+                submitLabel={myGroupRating !== null
+                    ? 'Actualizar calificación del grupo'
+                    : 'Guardar calificación del grupo'}
+                onClose={() => {
+                    if (!groupRatingSubmitting) setGroupRatingOpen(false);
+                }}
+                onSubmit={handleSubmitGroupRating}
+            />
         </div>
     );
 }

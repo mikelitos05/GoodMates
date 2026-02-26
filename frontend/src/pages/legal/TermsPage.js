@@ -58,7 +58,7 @@ function TermsPage() {
                     {/* 2 */}
                     <div className="legal-card" id="t2">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">👤</div>
+                            <div className="legal-card-icon">Cuenta</div>
                             <div>
                                 <h2 className="legal-card-title">2. Registro y Cuentas de Usuario</h2>
                                 <p className="legal-card-subtitle">Requisitos y responsabilidades</p>
@@ -81,7 +81,7 @@ function TermsPage() {
                     {/* 3 */}
                     <div className="legal-card" id="t3">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">✓</div>
+                            <div className="legal-card-icon">Reglas</div>
                             <div>
                                 <h2 className="legal-card-title">3. Uso Aceptable de la Plataforma</h2>
                                 <p className="legal-card-subtitle">Normas de conducta</p>
@@ -126,7 +126,7 @@ function TermsPage() {
                     {/* 5 */}
                     <div className="legal-card" id="t5">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">💡</div>
+                            <div className="legal-card-icon">Algoritmo</div>
                             <div>
                                 <h2 className="legal-card-title">5. Índice de Compatibilidad y Matches</h2>
                                 <p className="legal-card-subtitle">Funcionamiento del algoritmo</p>
@@ -147,7 +147,7 @@ function TermsPage() {
                     {/* 6 */}
                     <div className="legal-card" id="t6">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">⚖</div>
+                            <div className="legal-card-icon">Legal</div>
                             <div>
                                 <h2 className="legal-card-title">6. Limitación de Responsabilidad</h2>
                                 <p className="legal-card-subtitle">Alcance de la responsabilidad de la plataforma</p>
@@ -193,7 +193,7 @@ function TermsPage() {
                     {/* 8 */}
                     <div className="legal-card" id="t8">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🤝</div>
+                            <div className="legal-card-icon">Conflictos</div>
                             <div>
                                 <h2 className="legal-card-title">8. Resolución de Conflictos</h2>
                                 <p className="legal-card-subtitle">Mecanismos de mediación</p>
@@ -212,7 +212,7 @@ function TermsPage() {
                     {/* 9 */}
                     <div className="legal-card" id="t9">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">📝</div>
+                            <div className="legal-card-icon">Cambios</div>
                             <div>
                                 <h2 className="legal-card-title">9. Modificaciones a los Términos</h2>
                                 <p className="legal-card-subtitle">Actualización de condiciones</p>
@@ -231,7 +231,7 @@ function TermsPage() {
                     {/* 10 */}
                     <div className="legal-card" id="t10">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">📬</div>
+                            <div className="legal-card-icon">Contacto</div>
                             <div>
                                 <h2 className="legal-card-title">10. Contacto</h2>
                                 <p className="legal-card-subtitle">Comunicaciones y consultas</p>

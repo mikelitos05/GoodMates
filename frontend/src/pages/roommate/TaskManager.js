@@ -122,7 +122,7 @@ function TaskManager() {
                         <p className="section-subtitle">Organiza y da seguimiento a las tareas del hogar.</p>
                     </div>
                     <button className="btn btn-primary" onClick={() => setShowForm(!showForm)}>
-                        {showForm ? '✕ Cancelar' : '+ Nueva Tarea'}
+                        {showForm ? 'Cancelar' : '+ Nueva Tarea'}
                     </button>
                 </div>
 
@@ -222,7 +222,7 @@ function TaskManager() {
                                     className={`task-checkbox ${isCompleted ? 'checked' : ''}`}
                                     onClick={() => toggleTask(taskId)}
                                 >
-                                    {isCompleted ? '✓' : ''}
+                                    {isCompleted ? 'OK' : ''}
                                 </button>
                                 <div className="task-content">
                                     <h3 className={`task-title ${isCompleted ? 'completed' : ''}`}>

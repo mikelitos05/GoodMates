@@ -2,136 +2,410 @@ const express = require('express');
 const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
-const { verificarToken } = require('../middleware/authMiddleware');
+const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const {
+    parsearPuntuacionDecimal,
+    obtenerPendientesCalificacionLandlord,
+} = require('../services/ratingsService');
 
-// Crear o actualizar una calificacion para un roommate
+function construirAvatar(nombre, apellido) {
+    const inicialNombre = (nombre || '?').charAt(0).toUpperCase();
+    const inicialApellido = (apellido || '?').charAt(0).toUpperCase();
+    return `${inicialNombre}${inicialApellido}`;
+}
+
+async function upsertCalificacion(connection, {
+    idUsuarioCalificador,
+    idUsuarioCalificado,
+    idPropiedad,
+    puntuacion,
+    comentario,
+}) {
+    const [existente] = await connection.query(
+        `SELECT id_calificacion
+         FROM calificaciones
+         WHERE id_usuario_calificador = ?
+           AND id_usuario_calificado = ?
+           AND (id_propiedad = ? OR (id_propiedad IS NULL AND ? IS NULL))
+         LIMIT 1`,
+        [idUsuarioCalificador, idUsuarioCalificado, idPropiedad || null, idPropiedad || null]
+    );
+
+    if (existente.length > 0) {
+        await connection.query(
+            `UPDATE calificaciones
+             SET puntuacion = ?, comentario = ?, fecha_calificacion = CURRENT_TIMESTAMP
+             WHERE id_calificacion = ?`,
+            [puntuacion, comentario || null, existente[0].id_calificacion]
+        );
+        return { id_calificacion: existente[0].id_calificacion, updated: true };
+    }
+
+    const idCalificacion = uuidv4();
+    await connection.query(
+        `INSERT INTO calificaciones
+         (id_calificacion, id_usuario_calificador, id_usuario_calificado, id_propiedad, puntuacion, comentario)
+         VALUES (?, ?, ?, ?, ?, ?)`,
+        [idCalificacion, idUsuarioCalificador, idUsuarioCalificado, idPropiedad || null, puntuacion, comentario || null]
+    );
+
+    return { id_calificacion: idCalificacion, updated: false };
+}
+
+async function obtenerConvivenciaCompartidaActiva(executor, idTenantA, idTenantB) {
+    const [rows] = await executor.query(
+        `SELECT g.id_grupo, g.id_propiedad
+         FROM miembros_grupo mg1
+         JOIN miembros_grupo mg2
+           ON mg2.id_grupo = mg1.id_grupo
+          AND mg2.id_usuario = ?
+         JOIN grupos_roommates g ON g.id_grupo = mg1.id_grupo
+         WHERE mg1.id_usuario = ?
+           AND g.activo = TRUE
+         LIMIT 1`,
+        [idTenantB, idTenantA]
+    );
+
+    return rows[0] || null;
+}
+
+async function upsertCalificacionGrupo(connection, {
+    idGrupo,
+    idUsuarioCalificador,
+    puntuacion,
+    comentario,
+}) {
+    const [existente] = await connection.query(
+        `SELECT id_calificacion_grupo
+         FROM calificaciones_grupo
+         WHERE id_grupo = ? AND id_usuario_calificador = ?
+         LIMIT 1`,
+        [idGrupo, idUsuarioCalificador]
+    );
+
+    if (existente.length > 0) {
+        await connection.query(
+            `UPDATE calificaciones_grupo
+             SET puntuacion = ?, comentario = ?, fecha_actualizacion = CURRENT_TIMESTAMP
+             WHERE id_calificacion_grupo = ?`,
+            [puntuacion, comentario || null, existente[0].id_calificacion_grupo]
+        );
+        return { id_calificacion_grupo: existente[0].id_calificacion_grupo, updated: true };
+    }
+
+    const idCalificacionGrupo = uuidv4();
+    await connection.query(
+        `INSERT INTO calificaciones_grupo
+         (id_calificacion_grupo, id_grupo, id_usuario_calificador, puntuacion, comentario)
+         VALUES (?, ?, ?, ?, ?)`,
+        [idCalificacionGrupo, idGrupo, idUsuarioCalificador, puntuacion, comentario || null]
+    );
+
+    return { id_calificacion_grupo: idCalificacionGrupo, updated: false };
+}
+
+// Crear o actualizar una calificacion.
+// tenant -> tenant (misma convivencia activa)
+// landlord -> tenant (solo mediante id_pendiente valido)
 router.post('/', verificarToken, async (req, res) => {
-    try {
-        const { id_usuario_calificado, id_propiedad, limpieza, convivencia, respeto_reglas, comentario } = req.body;
+    const connection = await pool.getConnection();
 
-        // Validar campos obligatorios
-        if (!id_usuario_calificado || !limpieza || !convivencia || !respeto_reglas) {
+    try {
+        const { id_usuario_calificado, id_pendiente, puntuacion, comentario } = req.body;
+        const { value: puntuacionNormalizada, error: puntuacionError } = parsearPuntuacionDecimal(puntuacion);
+
+        if (puntuacionError) {
             return res.status(400).json({
                 success: false,
-                message: 'Se requiere el usuario a calificar y las tres puntuaciones (limpieza, convivencia, respeto_reglas)',
+                message: puntuacionError,
             });
         }
 
-        // Validar rangos de puntuacion (1-5)
-        const puntuaciones = { limpieza, convivencia, respeto_reglas };
-        for (const [campo, valor] of Object.entries(puntuaciones)) {
-            if (valor < 1 || valor > 5 || !Number.isInteger(valor)) {
+        await connection.beginTransaction();
+
+        if (req.usuario.rol === 'landlord') {
+            if (!id_pendiente) {
+                await connection.rollback();
                 return res.status(400).json({
                     success: false,
-                    message: `${campo} debe ser un entero entre 1 y 5`,
+                    message: 'Para arrendadores, id_pendiente es obligatorio',
                 });
             }
+
+            const [pendienteRows] = await connection.query(
+                `SELECT id_pendiente, id_landlord, id_tenant, id_propiedad, estado
+                 FROM calificaciones_pendientes
+                 WHERE id_pendiente = ? AND id_landlord = ?
+                 LIMIT 1
+                 FOR UPDATE`,
+                [id_pendiente, req.usuario.id]
+            );
+
+            if (pendienteRows.length === 0) {
+                await connection.rollback();
+                return res.status(404).json({
+                    success: false,
+                    message: 'Pendiente de calificación no encontrado',
+                });
+            }
+
+            const pendiente = pendienteRows[0];
+            if (pendiente.estado !== 'pendiente') {
+                await connection.rollback();
+                return res.status(409).json({
+                    success: false,
+                    message: 'Este pendiente ya fue resuelto',
+                });
+            }
+
+            if (pendiente.id_tenant === req.usuario.id) {
+                await connection.rollback();
+                return res.status(400).json({
+                    success: false,
+                    message: 'No puedes calificarte a ti mismo',
+                });
+            }
+
+            const resultado = await upsertCalificacion(connection, {
+                idUsuarioCalificador: req.usuario.id,
+                idUsuarioCalificado: pendiente.id_tenant,
+                idPropiedad: pendiente.id_propiedad,
+                puntuacion: puntuacionNormalizada,
+                comentario,
+            });
+
+            await connection.query(
+                `UPDATE calificaciones_pendientes
+                 SET estado = 'completada',
+                     motivo_omision = NULL,
+                     fecha_resolucion = CURRENT_TIMESTAMP
+                 WHERE id_pendiente = ?`,
+                [pendiente.id_pendiente]
+            );
+
+            await connection.commit();
+            return res.json({
+                success: true,
+                message: resultado.updated
+                    ? 'Calificación actualizada exitosamente'
+                    : 'Calificación registrada exitosamente',
+                id_calificacion: resultado.id_calificacion,
+                id_pendiente: pendiente.id_pendiente,
+                puntuacion: puntuacionNormalizada,
+            });
         }
 
-        // No permitir calificarse a si mismo
+        if (req.usuario.rol !== 'tenant') {
+            await connection.rollback();
+            return res.status(403).json({
+                success: false,
+                message: 'No tienes permiso para calificar en este contexto',
+            });
+        }
+
+        if (!id_usuario_calificado) {
+            await connection.rollback();
+            return res.status(400).json({
+                success: false,
+                message: 'id_usuario_calificado es obligatorio para tenants',
+            });
+        }
+
         if (req.usuario.id === id_usuario_calificado) {
+            await connection.rollback();
             return res.status(400).json({
                 success: false,
                 message: 'No puedes calificarte a ti mismo',
             });
         }
 
-        // Verificar que el usuario calificado existe
-        const [usuarioCalificado] = await pool.query(
-            'SELECT id_usuario FROM usuarios WHERE id_usuario = ?',
+        const [usuarioCalificado] = await connection.query(
+            "SELECT id_usuario FROM usuarios WHERE id_usuario = ? AND rol = 'tenant' AND estado_cuenta = 'activo' LIMIT 1",
             [id_usuario_calificado]
         );
         if (usuarioCalificado.length === 0) {
+            await connection.rollback();
             return res.status(404).json({
                 success: false,
-                message: 'El usuario a calificar no existe',
+                message: 'El usuario a calificar no existe o no es un tenant activo',
             });
         }
 
-        // Si se proporciona id_propiedad, verificar que existe
-        if (id_propiedad) {
-            const [propiedad] = await pool.query(
-                'SELECT id_propiedad FROM propiedades WHERE id_propiedad = ?',
-                [id_propiedad]
-            );
-            if (propiedad.length === 0) {
-                return res.status(404).json({
-                    success: false,
-                    message: 'La propiedad especificada no existe',
-                });
-            }
-        }
-
-        // Verificar si ya existe una calificacion entre estos usuarios para esta propiedad
-        const [existente] = await pool.query(
-            `SELECT id_calificacion FROM calificaciones 
-             WHERE id_usuario_calificador = ? AND id_usuario_calificado = ? 
-             AND (id_propiedad = ? OR (id_propiedad IS NULL AND ? IS NULL))`,
-            [req.usuario.id, id_usuario_calificado, id_propiedad || null, id_propiedad || null]
+        const convivencia = await obtenerConvivenciaCompartidaActiva(
+            connection,
+            req.usuario.id,
+            id_usuario_calificado
         );
 
-        if (existente.length > 0) {
-            // Actualizar calificacion existente
-            await pool.query(
-                `UPDATE calificaciones 
-                 SET limpieza = ?, convivencia = ?, respeto_reglas = ?, comentario = ?, fecha_calificacion = CURRENT_TIMESTAMP
-                 WHERE id_calificacion = ?`,
-                [limpieza, convivencia, respeto_reglas, comentario || null, existente[0].id_calificacion]
-            );
-
-            return res.json({
-                success: true,
-                message: 'Calificacion actualizada exitosamente',
+        if (!convivencia) {
+            await connection.rollback();
+            return res.status(403).json({
+                success: false,
+                code: 'RATING_NOT_ALLOWED',
+                message: 'Solo puedes calificar tenants de tu convivencia activa',
             });
         }
 
-        // Crear nueva calificacion
-        const id_calificacion = uuidv4();
-
-        await pool.query(
-            `INSERT INTO calificaciones (id_calificacion, id_usuario_calificador, id_usuario_calificado, id_propiedad, limpieza, convivencia, respeto_reglas, comentario)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [id_calificacion, req.usuario.id, id_usuario_calificado, id_propiedad || null, limpieza, convivencia, respeto_reglas, comentario || null]
-        );
-
-        res.status(201).json({
-            success: true,
-            message: 'Calificacion registrada exitosamente',
+        const resultado = await upsertCalificacion(connection, {
+            idUsuarioCalificador: req.usuario.id,
+            idUsuarioCalificado: id_usuario_calificado,
+            idPropiedad: convivencia.id_propiedad || null,
+            puntuacion: puntuacionNormalizada,
+            comentario,
         });
 
+        await connection.commit();
+        return res.json({
+            success: true,
+            message: resultado.updated
+                ? 'Calificación actualizada exitosamente'
+                : 'Calificación registrada exitosamente',
+            id_calificacion: resultado.id_calificacion,
+            puntuacion: puntuacionNormalizada,
+        });
     } catch (error) {
-        console.error('Error creando calificacion:', error);
-        res.status(500).json({
+        await connection.rollback();
+        console.error('Error creando calificación:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    } finally {
+        connection.release();
+    }
+});
+
+// Crear o actualizar calificación al grupo actual del tenant.
+router.post('/grupo', verificarToken, verificarRol('tenant'), async (req, res) => {
+    const connection = await pool.getConnection();
+
+    try {
+        const { id_grupo, puntuacion, comentario } = req.body;
+        if (!id_grupo) {
+            return res.status(400).json({
+                success: false,
+                message: 'id_grupo es obligatorio',
+            });
+        }
+
+        const { value: puntuacionNormalizada, error: puntuacionError } = parsearPuntuacionDecimal(puntuacion);
+        if (puntuacionError) {
+            return res.status(400).json({
+                success: false,
+                message: puntuacionError,
+            });
+        }
+
+        await connection.beginTransaction();
+        const [membership] = await connection.query(
+            `SELECT mg.id_miembro
+             FROM miembros_grupo mg
+             JOIN grupos_roommates g ON g.id_grupo = mg.id_grupo
+             WHERE mg.id_grupo = ? AND mg.id_usuario = ? AND g.activo = TRUE
+             LIMIT 1
+             FOR UPDATE`,
+            [id_grupo, req.usuario.id]
+        );
+
+        if (membership.length === 0) {
+            await connection.rollback();
+            return res.status(403).json({
+                success: false,
+                code: 'RATING_GROUP_NOT_ALLOWED',
+                message: 'Solo puedes calificar grupos activos a los que perteneces',
+            });
+        }
+
+        const resultado = await upsertCalificacionGrupo(connection, {
+            idGrupo: id_grupo,
+            idUsuarioCalificador: req.usuario.id,
+            puntuacion: puntuacionNormalizada,
+            comentario,
+        });
+
+        await connection.commit();
+        return res.json({
+            success: true,
+            message: resultado.updated
+                ? 'Calificación del grupo actualizada exitosamente'
+                : 'Calificación del grupo registrada exitosamente',
+            id_calificacion_grupo: resultado.id_calificacion_grupo,
+            puntuacion: puntuacionNormalizada,
+        });
+    } catch (error) {
+        await connection.rollback();
+        console.error('Error calificando grupo:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    } finally {
+        connection.release();
+    }
+});
+
+// Obtener reputación de un grupo.
+router.get('/grupo/:id', verificarToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const [statsRows] = await pool.query(
+            `SELECT ROUND(AVG(puntuacion), 1) AS promedio, COUNT(*) AS total
+             FROM calificaciones_grupo
+             WHERE id_grupo = ?`,
+            [id]
+        );
+
+        const [miCalificacionRows] = await pool.query(
+            `SELECT puntuacion, comentario
+             FROM calificaciones_grupo
+             WHERE id_grupo = ? AND id_usuario_calificador = ?
+             LIMIT 1`,
+            [id, req.usuario.id]
+        );
+
+        return res.json({
+            success: true,
+            calificacion_grupo: {
+                promedio: statsRows[0]?.promedio !== null && statsRows[0]?.promedio !== undefined
+                    ? Number(statsRows[0].promedio)
+                    : null,
+                total: Number(statsRows[0]?.total || 0),
+                mi_calificacion: miCalificacionRows[0]?.puntuacion !== null && miCalificacionRows[0]?.puntuacion !== undefined
+                    ? Number(miCalificacionRows[0].puntuacion)
+                    : null,
+                mi_comentario: miCalificacionRows[0]?.comentario || null,
+            },
+        });
+    } catch (error) {
+        console.error('Error obteniendo calificación de grupo:', error);
+        return res.status(500).json({
             success: false,
             message: 'Error interno del servidor',
         });
     }
 });
 
-// Obtener las calificaciones de un usuario (promedios por categoria y detalle)
+// Obtener las calificaciones de un usuario (promedio + detalle)
 router.get('/usuario/:id', verificarToken, async (req, res) => {
     try {
         const { id } = req.params;
 
-        // Obtener promedios por categoria
         const [promedios] = await pool.query(
-            `SELECT 
-                AVG(limpieza) as promedio_limpieza,
-                AVG(convivencia) as promedio_convivencia,
-                AVG(respeto_reglas) as promedio_respeto_reglas,
-                AVG((limpieza + convivencia + respeto_reglas) / 3.0) as promedio_general,
-                COUNT(*) as total
-             FROM calificaciones WHERE id_usuario_calificado = ?`,
+            `SELECT
+                ROUND(AVG(puntuacion), 1) AS promedio_general,
+                COUNT(*) AS total
+             FROM calificaciones
+             WHERE id_usuario_calificado = ?`,
             [id]
         );
 
-        // Obtener calificaciones individuales con datos del calificador
         const [calificaciones] = await pool.query(
-            `SELECT c.*, 
-                u.nombre as calificador_nombre, 
-                u.apellido as calificador_apellido,
-                u.nombre_usuario as calificador_username,
-                p.titulo as propiedad_titulo
+            `SELECT c.*,
+                u.nombre AS calificador_nombre,
+                u.apellido AS calificador_apellido,
+                u.nombre_usuario AS calificador_username,
+                p.titulo AS propiedad_titulo
              FROM calificaciones c
              JOIN usuarios u ON c.id_usuario_calificador = u.id_usuario
              LEFT JOIN propiedades p ON c.id_propiedad = p.id_propiedad
@@ -140,37 +414,119 @@ router.get('/usuario/:id', verificarToken, async (req, res) => {
             [id]
         );
 
-        const stats = promedios[0];
+        const total = Number(promedios[0]?.total || 0);
+        const promedioGeneral = total > 0 ? Number(promedios[0].promedio_general) : null;
 
-        res.json({
+        return res.json({
             success: true,
             reputacion: {
-                promedio_general: stats.total > 0 ? parseFloat(parseFloat(stats.promedio_general).toFixed(1)) : null,
-                promedio_limpieza: stats.total > 0 ? parseFloat(parseFloat(stats.promedio_limpieza).toFixed(1)) : null,
-                promedio_convivencia: stats.total > 0 ? parseFloat(parseFloat(stats.promedio_convivencia).toFixed(1)) : null,
-                promedio_respeto_reglas: stats.total > 0 ? parseFloat(parseFloat(stats.promedio_respeto_reglas).toFixed(1)) : null,
-                total_calificaciones: stats.total,
+                promedio_general: promedioGeneral,
+                // Aliases de compatibilidad retro con frontend legacy
+                promedio_limpieza: promedioGeneral,
+                promedio_convivencia: promedioGeneral,
+                promedio_respeto_reglas: promedioGeneral,
+                total_calificaciones: total,
             },
-            calificaciones: calificaciones.map(c => ({
-                id: c.id_calificacion,
-                calificador: {
-                    nombre: `${c.calificador_nombre} ${c.calificador_apellido}`,
-                    username: c.calificador_username,
-                    avatar: (c.calificador_nombre[0] + c.calificador_apellido[0]).toUpperCase(),
-                },
-                propiedad: c.propiedad_titulo || null,
-                limpieza: c.limpieza,
-                convivencia: c.convivencia,
-                respeto_reglas: c.respeto_reglas,
-                promedio: parseFloat(((c.limpieza + c.convivencia + c.respeto_reglas) / 3).toFixed(1)),
-                comentario: c.comentario,
-                fecha: c.fecha_calificacion,
-            })),
+            calificaciones: calificaciones.map((c) => {
+                const puntuacionActual = Number(c.puntuacion);
+                return {
+                    id: c.id_calificacion,
+                    calificador: {
+                        nombre: `${c.calificador_nombre} ${c.calificador_apellido}`.trim(),
+                        username: c.calificador_username,
+                        avatar: construirAvatar(c.calificador_nombre, c.calificador_apellido),
+                    },
+                    propiedad: c.propiedad_titulo || null,
+                    id_propiedad: c.id_propiedad || null,
+                    puntuacion: puntuacionActual,
+                    // Campos legacy para evitar romper vistas existentes
+                    promedio: puntuacionActual,
+                    limpieza: puntuacionActual,
+                    convivencia: puntuacionActual,
+                    respeto_reglas: puntuacionActual,
+                    comentario: c.comentario,
+                    fecha: c.fecha_calificacion,
+                };
+            }),
         });
-
     } catch (error) {
         console.error('Error obteniendo calificaciones:', error);
-        res.status(500).json({
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    }
+});
+
+// Obtener pendientes de calificacion del landlord autenticado
+router.get('/pendientes', verificarToken, verificarRol('landlord'), async (req, res) => {
+    try {
+        const pendientes = await obtenerPendientesCalificacionLandlord(pool, req.usuario.id);
+        return res.json({
+            success: true,
+            total: pendientes.length,
+            pendientes,
+        });
+    } catch (error) {
+        console.error('Error obteniendo pendientes de calificación:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    }
+});
+
+// Omitir pendiente de calificacion (requiere justificacion)
+router.put('/pendientes/:id/omitir', verificarToken, verificarRol('landlord'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const motivoOmision = (req.body?.motivo_omision || '').trim();
+
+        if (!motivoOmision) {
+            return res.status(400).json({
+                success: false,
+                message: 'motivo_omision es obligatorio',
+            });
+        }
+
+        const [rows] = await pool.query(
+            `SELECT estado
+             FROM calificaciones_pendientes
+             WHERE id_pendiente = ? AND id_landlord = ?
+             LIMIT 1`,
+            [id, req.usuario.id]
+        );
+
+        if (rows.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Pendiente de calificación no encontrado',
+            });
+        }
+
+        if (rows[0].estado !== 'pendiente') {
+            return res.status(409).json({
+                success: false,
+                message: 'Este pendiente ya fue resuelto',
+            });
+        }
+
+        await pool.query(
+            `UPDATE calificaciones_pendientes
+             SET estado = 'omitida',
+                 motivo_omision = ?,
+                 fecha_resolucion = CURRENT_TIMESTAMP
+             WHERE id_pendiente = ? AND id_landlord = ?`,
+            [motivoOmision, id, req.usuario.id]
+        );
+
+        return res.json({
+            success: true,
+            message: 'Pendiente marcado como omitido',
+        });
+    } catch (error) {
+        console.error('Error omitiendo pendiente de calificación:', error);
+        return res.status(500).json({
             success: false,
             message: 'Error interno del servidor',
         });

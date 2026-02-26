@@ -27,6 +27,69 @@
     margin-bottom: var(--space-5);
 }
 
+.landlord-pending-panel {
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+.landlord-pending-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.landlord-pending-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.landlord-pending-count {
+    font-size: var(--font-xs);
+    color: var(--text-muted, #6b7280);
+    font-weight: 700;
+}
+
+.landlord-pending-count.is-active {
+    color: var(--danger, #ef4444);
+}
+
+.landlord-pending-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.landlord-pending-item {
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.landlord-pending-title {
+    margin: 0;
+    font-weight: 700;
+}
+
+.landlord-pending-meta {
+    margin: 2px 0 0;
+    color: var(--text-muted, #6b7280);
+    font-size: 0.88rem;
+}
+
+.landlord-pending-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
 .landlord-tenants-filter label {
     display: block;
     margin-bottom: var(--space-2);
@@ -74,6 +137,19 @@
 }
 
 @media (max-width: 768px) {
+    .landlord-pending-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .landlord-pending-actions {
+        width: 100%;
+    }
+
+    .landlord-pending-actions .btn {
+        flex: 1;
+    }
+
     .landlord-tenant-card {
         flex-direction: column;
         align-items: flex-start;

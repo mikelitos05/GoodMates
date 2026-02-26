@@ -145,6 +145,19 @@ function PropertyDetail() {
     const landlordNombre = property.landlord_nombre || '';
     const landlordApellido = property.landlord_apellido || '';
     const landlordEmail = property.landlord_email || '';
+    const inquilinosCompatibles = Array.isArray(property.inquilinos_compatibles) ? property.inquilinos_compatibles : [];
+    const inquilinosActivos = Number.isFinite(Number(property.inquilinos_activos))
+        ? Number(property.inquilinos_activos)
+        : Math.max(0, rooms - availableRooms);
+    const calificacionPromedioRaw = property.calificacion_promedio_inquilinos !== null && property.calificacion_promedio_inquilinos !== undefined
+        ? Number(property.calificacion_promedio_inquilinos)
+        : null;
+    const calificacionPromedioInquilinos = Number.isFinite(calificacionPromedioRaw)
+        ? calificacionPromedioRaw
+        : null;
+    const inquilinosCalificados = Number.isFinite(Number(property.inquilinos_calificados))
+        ? Number(property.inquilinos_calificados)
+        : 0;
 
     // Button label and style based on inquiry state
     const getInquiryButton = () => {
@@ -153,17 +166,17 @@ function PropertyDetail() {
         }
         switch (inquiryState) {
             case 'pendiente':
-                return { label: '⏳ Solicitud Pendiente', className: 'btn btn-accent btn-lg', disabled: true };
+                return { label: 'Solicitud pendiente', className: 'btn btn-accent btn-lg', disabled: true };
             case 'aceptada':
-                return { label: '💬 Ir al Chat', className: 'btn btn-success btn-lg', disabled: false };
+                return { label: 'Ir al Chat', className: 'btn btn-success btn-lg', disabled: false };
             case 'rechazada':
-                return { label: '✕ Solicitud Rechazada', className: 'btn btn-danger btn-lg', disabled: true };
+                return { label: 'Solicitud Rechazada', className: 'btn btn-danger btn-lg', disabled: true };
             case 'confirmada':
-                return { label: '✅ Confirmado como Inquilino', className: 'btn btn-success btn-lg', disabled: true };
+                return { label: 'Confirmado como Inquilino', className: 'btn btn-success btn-lg', disabled: true };
             case 'declinada':
-                return { label: '✕ Solicitud Declinada', className: 'btn btn-danger btn-lg', disabled: true };
+                return { label: 'Solicitud Declinada', className: 'btn btn-danger btn-lg', disabled: true };
             case 'traslado_pendiente':
-                return { label: '⏳ Solicitud en revisión', className: 'btn btn-accent btn-lg', disabled: true };
+                return { label: 'Solicitud en revisión', className: 'btn btn-accent btn-lg', disabled: true };
             default:
                 if (convivenciaActiva) {
                     return {
@@ -172,7 +185,7 @@ function PropertyDetail() {
                         disabled: true,
                     };
                 }
-                return { label: '📩 Solicitar Informes', className: 'btn btn-primary btn-lg', disabled: false };
+                return { label: 'Solicitar Informes', className: 'btn btn-primary btn-lg', disabled: false };
         }
     };
 
@@ -273,7 +286,7 @@ function PropertyDetail() {
                                         <div className="amenities-grid">
                                             {amenities.map((a, i) => (
                                                 <div key={i} className="amenity-item">
-                                                    <span className="amenity-check">✓</span>
+                                                    <span className="amenity-check">OK</span>
                                                     {a}
                                                 </div>
                                             ))}
@@ -291,6 +304,42 @@ function PropertyDetail() {
                                                     {rule}
                                                 </div>
                                             ))}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {inquilinosCompatibles.length > 0 && (
+                                    <div className="detail-section">
+                                        <h2 className="detail-section-title">Inquilinos actuales y compatibilidad</h2>
+                                        <div className="tenant-compat-list">
+                                            {inquilinosCompatibles.map((tenant) => {
+                                                const fullName = `${tenant.nombre || ''} ${tenant.apellido || ''}`.trim() || 'Inquilino';
+                                                const avatar = tenant.avatar || fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || '??';
+                                                const compat = tenant.compatibilidad;
+                                                const ratingRaw = tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
+                                                    ? Number(tenant.calificacion_promedio)
+                                                    : null;
+                                                const ratingPromedio = Number.isFinite(ratingRaw) ? ratingRaw : null;
+                                                const ratingCount = Number(tenant.total_calificaciones || 0);
+
+                                                return (
+                                                    <div key={tenant.id_usuario} className="tenant-compat-item">
+                                                        <div className="avatar avatar-md">{avatar}</div>
+                                                        <div className="tenant-compat-meta">
+                                                            <p className="tenant-compat-name">{fullName}</p>
+                                                            <p className="tenant-compat-subtitle">
+                                                                {ratingPromedio !== null && ratingCount > 0
+                                                                    ? `Calificación: ${ratingPromedio.toFixed(1)} (${ratingCount})`
+                                                                    : 'Calificación: Sin calificaciones'}
+                                                            </p>
+                                                        </div>
+                                                        <div className="tenant-compat-right">
+                                                            <p className="tenant-compat-subtitle">Compatibilidad contigo</p>
+                                                            <span className="tenant-compat-score">{compat}%</span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                 )}
@@ -412,6 +461,18 @@ function PropertyDetail() {
                                         <span>Disponibles</span>
                                         <span className="availability-value highlight">{availableRooms}</span>
                                     </div>
+                                    <div className="availability-row">
+                                        <span>Inquilinos activos</span>
+                                        <span className="availability-value">{inquilinosActivos}</span>
+                                    </div>
+                                    <div className="availability-row">
+                                        <span>Rating promedio inquilinos</span>
+                                        <span className="availability-value">
+                                            {calificacionPromedioInquilinos !== null && inquilinosCalificados > 0
+                                                ? `${calificacionPromedioInquilinos.toFixed(1)} (${inquilinosCalificados})`
+                                                : 'Sin calificaciones'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -423,7 +484,7 @@ function PropertyDetail() {
             {
                 lightbox && images.length > 0 && (
                     <div className="lightbox-overlay" onClick={() => setLightbox(false)}>
-                        <button className="lightbox-close" onClick={() => setLightbox(false)}>✕</button>
+                        <button className="lightbox-close" onClick={() => setLightbox(false)}>Cerrar</button>
                         <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
                             <img
                                 key={activeImg}

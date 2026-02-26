@@ -9,6 +9,7 @@ Uso:
     python seed_users.py
 """
 
+import json
 import mysql.connector
 import bcrypt
 import uuid
@@ -270,12 +271,13 @@ def main():
         cursor.execute(
             '''INSERT INTO usuarios
                (id_usuario, nombre_usuario, nombre, apellido, email, contrasena_hash,
-                genero, universidad, carrera, biografia, rol, estado_cuenta)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'tenant', 'activo')''',
+                genero, universidad, carrera, biografia, rol, estado_cuenta, perfil_completo, modo_busqueda_activo)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 'tenant', 'activo', %s, %s)''',
             (
                 user_id, tenant['nombre_usuario'], tenant['nombre'], tenant['apellido'],
                 tenant['email'], password_hash, tenant['genero'],
                 tenant['universidad'], tenant['carrera'], tenant['biografia'],
+                True, True
             )
         )
         inserted_tenants += 1
@@ -285,20 +287,24 @@ def main():
         if i < len(TENANT_PROFILES):
             profile = TENANT_PROFILES[i]
             profile_id = new_id()
-            import json
             hobbies_json = json.dumps(profile['hobbies']) if profile.get('hobbies') else None
 
             cursor.execute(
                 '''INSERT INTO perfiles
                    (id_perfil, id_usuario, edad, presupuesto, ciudad, horario,
-                    semestre, ocupacion, mascotas, fumador, limpieza, ruido, visitantes, hobbies)
-                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
+                    semestre, ocupacion, mascotas, fumador, limpieza, ruido, visitantes, hobbies,
+                    preferencia_visitantes, preferencia_social, preferencia_ruido, preferencia_mascotas)
+                   VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)''',
                 (
                     profile_id, user_id, profile['edad'], profile['presupuesto'],
                     profile['ciudad'], profile['horario'], profile['semestre'],
                     profile['ocupacion'], profile['mascotas'], profile['fumador'],
                     profile['limpieza'], profile['ruido'], profile['visitantes'],
                     hobbies_json,
+                    profile.get('preferencia_visitantes', 'Ocasionalmente'),
+                    profile.get('preferencia_social', 3),
+                    profile.get('preferencia_ruido', 3),
+                    profile.get('preferencia_mascotas', 'Sin preferencia'),
                 )
             )
             inserted_profiles += 1

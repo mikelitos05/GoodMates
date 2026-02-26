@@ -1,52 +1,72 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRatings, getMyProfile, updateProfile as apiUpdateProfile } from '../../services/api';
+import { getUserRatings, getMyProfile } from '../../services/api';
 import careerCategories from '../../data/careerOptions';
 import hobbyCategories from '../../data/hobbyOptions';
 import './TenantProfile.css';
 
+const normalizeText = (value) => (typeof value === 'string' ? value.trim() : '');
+const normalizeInteger = (value, fallback = '') => {
+    if (value === '' || value === null || value === undefined) return fallback;
+    const parsed = Number.parseInt(value, 10);
+    return Number.isNaN(parsed) ? fallback : parsed;
+};
+const normalizeSlider = (value) => {
+    const parsed = Number.parseInt(value, 10);
+    if (Number.isNaN(parsed)) return 3;
+    return Math.min(5, Math.max(1, parsed));
+};
+const normalizeHobbies = (value) => {
+    const parsed = Array.isArray(value)
+        ? value
+        : (typeof value === 'string' ? (() => { try { return JSON.parse(value); } catch { return []; } })() : []);
+
+    return [...new Set(parsed.map((h) => normalizeText(h)).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es-MX'));
+};
+
+const normalizeProfile = (profile = {}) => ({
+    edad: normalizeInteger(profile.edad, ''),
+    genero: normalizeText(profile.genero),
+    ciudad: normalizeText(profile.ciudad),
+    presupuesto: normalizeInteger(profile.presupuesto, ''),
+    biografia: normalizeText(profile.biografia),
+    universidad: normalizeText(profile.universidad),
+    carrera: normalizeText(profile.carrera),
+    semestre: normalizeInteger(profile.semestre, ''),
+    ocupacion: normalizeText(profile.ocupacion),
+    horario: normalizeText(profile.horario),
+    visitantes: normalizeText(profile.visitantes),
+    mascotas: Boolean(profile.mascotas),
+    fumador: Boolean(profile.fumador),
+    limpieza: normalizeSlider(profile.limpieza),
+    ruido: normalizeSlider(profile.ruido),
+    preferencia_visitantes: normalizeText(profile.preferencia_visitantes),
+    preferencia_social: normalizeSlider(profile.preferencia_social),
+    preferencia_ruido: normalizeSlider(profile.preferencia_ruido),
+    preferencia_mascotas: normalizeText(profile.preferencia_mascotas),
+    hobbies: normalizeHobbies(profile.hobbies),
+});
+
 function TenantProfile() {
     const { user, updateProfile: ctxUpdateProfile } = useAuth();
-    const [profile, setProfile] = useState({});
-    const [saved, setSaved] = useState(false);
+    const [profile, setProfile] = useState(() => normalizeProfile({}));
+    const [initialProfile, setInitialProfile] = useState(() => normalizeProfile({}));
     const [saving, setSaving] = useState(false);
     const [activeSection, setActiveSection] = useState('personal');
     const [reputacion, setReputacion] = useState(null);
     const [calificaciones, setCalificaciones] = useState([]);
-    const [loading, setLoading] = useState(true);
     const isProfileIncomplete = !user?.perfil_completo;
 
     // Cargar perfil del backend al montar
     useEffect(() => {
         const fetchProfile = async () => {
-            setLoading(true);
             const result = await getMyProfile();
-            if (result.success && result.perfil) {
-                const p = result.perfil;
-                setProfile({
-                    edad: p.edad || '',
-                    genero: p.genero || '',
-                    ciudad: p.ciudad || '',
-                    presupuesto: p.presupuesto || '',
-                    biografia: p.biografia || '',
-                    universidad: p.universidad || '',
-                    carrera: p.carrera || '',
-                    semestre: p.semestre || '',
-                    ocupacion: p.ocupacion || '',
-                    horario: p.horario || '',
-                    visitantes: p.visitantes || '',
-                    mascotas: p.mascotas || false,
-                    fumador: p.fumador || false,
-                    limpieza: p.limpieza || 3,
-                    ruido: p.ruido || 3,
-                    hobbies: (typeof p.hobbies === 'string' ? JSON.parse(p.hobbies) : p.hobbies) || [],
-                    preferencia_visitantes: p.preferencia_visitantes || '',
-                    preferencia_social: p.preferencia_social || 3,
-                    preferencia_ruido: p.preferencia_ruido || 3,
-                    preferencia_mascotas: p.preferencia_mascotas || '',
-                });
-            }
-            setLoading(false);
+            const perfilNormalizado = result.success && result.perfil
+                ? normalizeProfile(result.perfil)
+                : normalizeProfile({});
+
+            setProfile(perfilNormalizado);
+            setInitialProfile(perfilNormalizado);
         };
         fetchProfile();
     }, []);
@@ -67,7 +87,6 @@ function TenantProfile() {
 
     const handleChange = (field, value) => {
         setProfile((prev) => ({ ...prev, [field]: value }));
-        setSaved(false);
     };
 
     const handleHobbiesChange = (hobby) => {
@@ -80,17 +99,22 @@ function TenantProfile() {
     };
 
     const handleSave = async () => {
+        const normalizedCurrent = normalizeProfile(profile);
+        const hasChanges = JSON.stringify(normalizedCurrent) !== JSON.stringify(initialProfile);
+        if (!hasChanges) return;
+
         setSaving(true);
-        const result = await ctxUpdateProfile(profile);
+        const result = await ctxUpdateProfile(normalizedCurrent);
         setSaving(false);
         if (result.success) {
-            setSaved(true);
-            setTimeout(() => setSaved(false), 3000);
+            setProfile(normalizedCurrent);
+            setInitialProfile(normalizedCurrent);
         } else {
             alert('Error al guardar el perfil: ' + (result.error || 'Error desconocido'));
         }
     };
 
+    const isDirty = JSON.stringify(normalizeProfile(profile)) !== JSON.stringify(initialProfile);
     const sections = [
         { id: 'personal', label: 'Personal', icon: '' },
         { id: 'academic', label: 'Académico', icon: '' },
@@ -108,7 +132,7 @@ function TenantProfile() {
                 {isProfileIncomplete && (
                     <div className="profile-incomplete-banner animate-fade-in-up">
                         <div className="banner-content">
-                            <span className="banner-icon">⚠️</span>
+                            <span className="banner-icon">Aviso</span>
                             <div>
                                 <strong>Completa tu perfil</strong>
                                 <p>Necesitas completar tu perfil para usar la plataforma. Llena al menos: edad, ciudad, horario y hobbies.</p>
@@ -126,8 +150,8 @@ function TenantProfile() {
                             <span className="badge badge-primary">Inquilino</span>
                         </div>
                     </div>
-                    <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-                        {saving ? 'Guardando...' : saved ? '✓ Guardado' : 'Guardar Cambios'}
+                    <button className="btn btn-primary" onClick={handleSave} disabled={saving || !isDirty}>
+                        {saving ? 'Guardando...' : isDirty ? 'Guardar Cambios' : 'Sin cambios'}
                     </button>
                 </div>
 

@@ -98,7 +98,7 @@ function InquiryManager() {
                     <p className="empty-state">Cargando solicitudes...</p>
                 ) : filtered.length === 0 ? (
                     <div className="no-results animate-fade-in-up">
-                        <span className="no-results-icon">📭</span>
+                        <span className="no-results-icon">Sin resultados</span>
                         <h3>No hay solicitudes {filter !== 'todas' ? filter + 's' : ''}</h3>
                         <p>Cuando un inquilino solicite informes sobre una de tus propiedades, aparecerá aquí.</p>
                     </div>
@@ -152,23 +152,23 @@ function InquiryManager() {
                                         {sol.estado === 'pendiente' && (
                                             <>
                                                 <button className="btn btn-primary btn-sm" onClick={() => handleAccept(sol.id_solicitud)}>
-                                                    ✓ Aceptar
+                                                    Aceptar
                                                 </button>
                                                 <button className="btn btn-danger btn-sm" onClick={() => handleReject(sol.id_solicitud)}>
-                                                    ✕ Rechazar
+                                                    Rechazar
                                                 </button>
                                             </>
                                         )}
                                         {sol.estado === 'aceptada' && (
                                             <>
                                                 <button className="btn btn-accent btn-sm" onClick={() => navigate(`/chat/${sol.id_solicitud}`)}>
-                                                    💬 Ir al Chat
+                                                    Ir al chat
                                                 </button>
                                                 <button className="btn btn-primary btn-sm" onClick={() => handleConfirm(sol.id_solicitud)}>
-                                                    ✓ Aceptar Inquilino
+                                                    Aceptar inquilino
                                                 </button>
                                                 <button className="btn btn-danger btn-sm" onClick={() => handleDecline(sol.id_solicitud)}>
-                                                    ✕ Rechazar Inquilino
+                                                    Rechazar inquilino
                                                 </button>
                                             </>
                                         )}

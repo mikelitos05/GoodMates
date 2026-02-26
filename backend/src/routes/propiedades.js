@@ -4,37 +4,19 @@ const { v4: uuidv4 } = require('uuid');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
-const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const { verificarToken, verificarRol, cargarUsuarioOpcional } = require('../middleware/authMiddleware');
+const { calcularCompatibilidadSiPosible } = require('../services/compatibilityService');
 const {
     construirErrorRegla,
     contarInquilinosActivosEnPropiedad,
     removerTenantDeConvivenciaActiva,
     enviarErrorRegla,
 } = require('../services/convivenciaRules');
-
-// Import compatibility function from matches route
-let calcularCompatibilidad, parseHobbies;
-try {
-    const matchesRouter = require('./matches');
-    calcularCompatibilidad = matchesRouter.calcularCompatibilidad;
-    parseHobbies = matchesRouter.parseHobbies;
-} catch (e) {
-    console.error('Warning: could not load compatibility from matches:', e.message);
-}
-
-// Helper to optionally extract tenant user from token (without blocking)
-function optionalTenantId(req) {
-    try {
-        const authHeader = req.headers.authorization;
-        if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-        const token = authHeader.split(' ')[1];
-        const decoded = jwt.verify(token, process.env.JWT_SECRET || 'goodmates_secret_key_2025');
-        if (decoded.rol !== 'tenant') return null;
-        return decoded.id;
-    } catch { return null; }
-}
+const {
+    crearPendienteCalificacionLandlordPorEgreso,
+    obtenerResumenPendientesCalificacionLandlord,
+} = require('../services/ratingsService');
 
 // Configuracion de multer para subir imagenes de propiedades al disco local
 const storage = multer.diskStorage({
@@ -83,12 +65,130 @@ function parsearDecimal(valor) {
     return Number.isNaN(numero) ? null : numero;
 }
 
+function construirAvatar(nombre, apellido) {
+    const inicialNombre = (nombre || '?').charAt(0).toUpperCase();
+    const inicialApellido = (apellido || '?').charAt(0).toUpperCase();
+    return `${inicialNombre}${inicialApellido}`;
+}
+
+async function obtenerPerfilTenant(idUsuario) {
+    if (!idUsuario) return null;
+
+    const [rows] = await pool.query(
+        'SELECT * FROM perfiles WHERE id_usuario = ? LIMIT 1',
+        [idUsuario]
+    );
+
+    return rows[0] || null;
+}
+
+async function obtenerTenantsActivosPorPropiedades(idsPropiedades = []) {
+    if (!Array.isArray(idsPropiedades) || idsPropiedades.length === 0) {
+        return new Map();
+    }
+
+    const [rows] = await pool.query(
+        `SELECT g.id_propiedad, u.id_usuario, u.nombre, u.apellido, p.*,
+                cr.calificacion_promedio, cr.total_calificaciones
+         FROM grupos_roommates g
+         JOIN miembros_grupo mg ON mg.id_grupo = g.id_grupo
+         JOIN usuarios u ON u.id_usuario = mg.id_usuario
+         LEFT JOIN perfiles p ON p.id_usuario = u.id_usuario
+         LEFT JOIN (
+            SELECT id_usuario_calificado,
+                   ROUND(AVG(puntuacion), 1) AS calificacion_promedio,
+                   COUNT(*) AS total_calificaciones
+            FROM calificaciones
+            GROUP BY id_usuario_calificado
+         ) cr ON cr.id_usuario_calificado = u.id_usuario
+         WHERE g.activo = TRUE
+           AND g.id_propiedad IN (?)
+           AND u.rol = 'tenant'
+           AND u.estado_cuenta = 'activo'`,
+        [idsPropiedades]
+    );
+
+    const porPropiedad = new Map();
+    for (const row of rows) {
+        if (!porPropiedad.has(row.id_propiedad)) {
+            porPropiedad.set(row.id_propiedad, []);
+        }
+        porPropiedad.get(row.id_propiedad).push(row);
+    }
+
+    return porPropiedad;
+}
+
+function enriquecerPropiedadConCompatibilidad({ propiedad, tenantsActivos = [], tenantActualId = null, perfilActual = null }) {
+    const inquilinosActivos = tenantsActivos.length;
+    const inquilinosConCalificacion = tenantsActivos.filter((tenant) =>
+        tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
+    );
+    const promedioCalificaciones = inquilinosConCalificacion.length > 0
+        ? Number(
+            (
+                inquilinosConCalificacion.reduce(
+                    (acc, tenant) => acc + Number(tenant.calificacion_promedio || 0),
+                    0
+                ) / inquilinosConCalificacion.length
+            ).toFixed(1)
+        )
+        : null;
+
+    const base = {
+        ...propiedad,
+        inquilinos_activos: inquilinosActivos,
+        compatibilidad: null,
+        inquilinos_compatibles: [],
+        calificacion_promedio_inquilinos: promedioCalificaciones,
+        inquilinos_calificados: inquilinosConCalificacion.length,
+    };
+
+    if (!perfilActual) {
+        return base;
+    }
+
+    const inquilinosCompatibles = tenantsActivos
+        .filter((t) => t.id_usuario !== tenantActualId)
+        .map((tenant) => {
+            const compatibilidad = calcularCompatibilidadSiPosible(perfilActual, tenant);
+            if (compatibilidad === null || compatibilidad === undefined) {
+                return null;
+            }
+
+            return {
+                id_usuario: tenant.id_usuario,
+                nombre: tenant.nombre,
+                apellido: tenant.apellido,
+                avatar: construirAvatar(tenant.nombre, tenant.apellido),
+                compatibilidad,
+                calificacion_promedio: tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
+                    ? Number(tenant.calificacion_promedio)
+                    : null,
+                total_calificaciones: Number(tenant.total_calificaciones || 0),
+            };
+        })
+        .filter(Boolean);
+
+    const promedio = inquilinosCompatibles.length > 0
+        ? Math.round(
+            inquilinosCompatibles.reduce((acc, item) => acc + item.compatibilidad, 0) / inquilinosCompatibles.length
+        )
+        : null;
+
+    return {
+        ...base,
+        compatibilidad: promedio,
+        inquilinos_compatibles: inquilinosCompatibles,
+    };
+}
+
 // Listar propiedades con filtros opcionales y paginacion
-router.get('/', async (req, res) => {
+router.get('/', cargarUsuarioOpcional, async (req, res) => {
     try {
         const { ciudad, precioMin, precioMax, habitaciones, pagina = 1, limite = 10 } = req.query;
 
-        let query = 'SELECT * FROM propiedades WHERE disponible = TRUE';
+        let query = 'SELECT * FROM propiedades WHERE disponible = TRUE AND habitaciones_disponibles > 0';
         const params = [];
 
         if (ciudad) {
@@ -116,7 +216,7 @@ router.get('/', async (req, res) => {
 
         const [propiedades] = await pool.query(query, params);
 
-        let countQuery = 'SELECT COUNT(*) as total FROM propiedades WHERE disponible = TRUE';
+        let countQuery = 'SELECT COUNT(*) as total FROM propiedades WHERE disponible = TRUE AND habitaciones_disponibles > 0';
         const countParams = [];
         if (ciudad) { countQuery += ' AND ciudad LIKE ?'; countParams.push(`%${ciudad}%`); }
         if (precioMin) { countQuery += ' AND precio >= ?'; countParams.push(parseFloat(precioMin)); }
@@ -124,58 +224,26 @@ router.get('/', async (req, res) => {
         if (habitaciones) { countQuery += ' AND habitaciones_disponibles >= ?'; countParams.push(parseInt(habitaciones)); }
         const [countResult] = await pool.query(countQuery, countParams);
 
-        let propiedadesParsed = propiedades.map(parsearPropiedad);
+        // Parsear campos JSON de cada propiedad
+        const propiedadesParsed = propiedades.map(parsearPropiedad);
+        const idsPropiedades = propiedadesParsed.map((p) => p.id_propiedad).filter(Boolean);
+        const tenantsPorPropiedad = await obtenerTenantsActivosPorPropiedades(idsPropiedades);
 
-        // ── Compute compatibility if tenant is authenticated ──
-        const tenantId = optionalTenantId(req);
-        if (tenantId && calcularCompatibilidad) {
-            try {
-                const [miPerfil] = await pool.query(
-                    `SELECT p.*, u.carrera FROM perfiles p
-                     JOIN usuarios u ON u.id_usuario = p.id_usuario
-                     WHERE p.id_usuario = ?`, [tenantId]
-                );
+        const esTenantAutenticado = req.usuario?.rol === 'tenant';
+        const perfilActual = esTenantAutenticado ? await obtenerPerfilTenant(req.usuario.id) : null;
 
-                if (miPerfil.length > 0) {
-                    // Get all group tenants for all properties in one query
-                    const propIds = propiedadesParsed.map(p => p.id_propiedad);
-                    if (propIds.length > 0) {
-                        const [grupoTenants] = await pool.query(
-                            `SELECT g.id_propiedad, mg.id_usuario, pr.*, u.carrera
-                             FROM grupos_roommates g
-                             JOIN miembros_grupo mg ON mg.id_grupo = g.id_grupo
-                             JOIN perfiles pr ON pr.id_usuario = mg.id_usuario
-                             JOIN usuarios u ON u.id_usuario = mg.id_usuario
-                             WHERE g.id_propiedad IN (?) AND g.activo = TRUE AND mg.id_usuario != ?`,
-                            [propIds, tenantId]
-                        );
-
-                        // Build map: id_propiedad -> [profiles]
-                        const propTenantMap = {};
-                        for (const t of grupoTenants) {
-                            if (!propTenantMap[t.id_propiedad]) propTenantMap[t.id_propiedad] = [];
-                            propTenantMap[t.id_propiedad].push(t);
-                        }
-
-                        propiedadesParsed = propiedadesParsed.map(p => {
-                            const tenants = propTenantMap[p.id_propiedad] || [];
-                            if (tenants.length === 0) {
-                                return { ...p, compatibilidad: null };
-                            }
-                            const sum = tenants.reduce((acc, t) =>
-                                acc + calcularCompatibilidad(miPerfil[0], t), 0);
-                            return { ...p, compatibilidad: Math.round(sum / tenants.length) };
-                        });
-                    }
-                }
-            } catch (e) {
-                console.error('Error computing property compatibility:', e);
-            }
-        }
+        const propiedadesEnriquecidas = propiedadesParsed.map((propiedad) =>
+            enriquecerPropiedadConCompatibilidad({
+                propiedad,
+                tenantsActivos: tenantsPorPropiedad.get(propiedad.id_propiedad) || [],
+                tenantActualId: req.usuario?.id || null,
+                perfilActual,
+            })
+        );
 
         res.json({
             success: true,
-            propiedades: propiedadesParsed,
+            propiedades: propiedadesEnriquecidas,
             paginacion: {
                 pagina: parseInt(pagina),
                 limite: parseInt(limite),
@@ -236,10 +304,18 @@ router.get('/:id/inquilinos', verificarToken, verificarRol('landlord'), async (r
 
         const [inquilinos] = await pool.query(
             `SELECT mg.id_usuario, u.nombre, u.apellido, u.email, mg.rol_en_grupo, mg.fecha_union,
-                    s.id_solicitud AS id_solicitud_chat
+                    s.id_solicitud AS id_solicitud_chat,
+                    cr.calificacion_promedio, cr.total_calificaciones
              FROM grupos_roommates g
              JOIN miembros_grupo mg ON mg.id_grupo = g.id_grupo
              JOIN usuarios u ON u.id_usuario = mg.id_usuario
+             LEFT JOIN (
+                SELECT id_usuario_calificado,
+                       ROUND(AVG(puntuacion), 1) AS calificacion_promedio,
+                       COUNT(*) AS total_calificaciones
+                FROM calificaciones
+                GROUP BY id_usuario_calificado
+             ) cr ON cr.id_usuario_calificado = mg.id_usuario
              LEFT JOIN solicitudes_informes s
                 ON s.id_tenant = mg.id_usuario
                AND s.id_propiedad = g.id_propiedad
@@ -286,6 +362,17 @@ router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlor
             );
         }
 
+        const pendientes = await obtenerResumenPendientesCalificacionLandlord(connection, req.usuario.id);
+        if (pendientes.total > 0) {
+            const errorPendientes = construirErrorRegla(
+                'LANDLORD_PENDING_RATINGS',
+                'Tienes calificaciones pendientes por resolver antes de continuar',
+                409
+            );
+            errorPendientes.pendingRatings = pendientes;
+            throw errorPendientes;
+        }
+
         const [tenantRows] = await connection.query(
             `SELECT mg.id_grupo
              FROM miembros_grupo mg
@@ -311,6 +398,11 @@ router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlor
             idTenant,
             incrementarDisponibilidad: true,
         });
+        const pendienteCalificacion = await crearPendienteCalificacionLandlordPorEgreso(connection, {
+            idTenant,
+            idPropiedad: id,
+            motivo: 'remocion_landlord',
+        });
 
         await connection.commit();
 
@@ -318,6 +410,7 @@ router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlor
             success: true,
             message: 'Inquilino removido exitosamente de la propiedad',
             resultado,
+            pendiente_calificacion: pendienteCalificacion,
         });
     } catch (error) {
         await connection.rollback();
@@ -329,7 +422,7 @@ router.delete('/:id/inquilinos/:idTenant', verificarToken, verificarRol('landlor
 });
 
 // Obtener el detalle de una propiedad por su ID
-router.get('/:id', async (req, res) => {
+router.get('/:id', cargarUsuarioOpcional, async (req, res) => {
     try {
         const { id } = req.params;
 
@@ -348,61 +441,22 @@ router.get('/:id', async (req, res) => {
             });
         }
 
-        const propiedad = parsearPropiedad(rows[0]);
+        const propiedadBase = parsearPropiedad(rows[0]);
+        const tenantsPorPropiedad = await obtenerTenantsActivosPorPropiedades([id]);
 
-        // ── Get group tenants and compatibility for authenticated tenant ──
-        let roommates = [];
-        const tenantId = optionalTenantId(req);
+        const esTenantAutenticado = req.usuario?.rol === 'tenant';
+        const perfilActual = esTenantAutenticado ? await obtenerPerfilTenant(req.usuario.id) : null;
 
-        try {
-            const [grupoTenants] = await pool.query(
-                `SELECT mg.id_usuario, u.nombre, u.apellido, pr.*,
-                        u.carrera, u.universidad
-                 FROM grupos_roommates g
-                 JOIN miembros_grupo mg ON mg.id_grupo = g.id_grupo
-                 JOIN usuarios u ON u.id_usuario = mg.id_usuario
-                 LEFT JOIN perfiles pr ON pr.id_usuario = mg.id_usuario
-                 WHERE g.id_propiedad = ? AND g.activo = TRUE`,
-                [id]
-            );
-
-            if (grupoTenants.length > 0 && tenantId && calcularCompatibilidad) {
-                const [miPerfil] = await pool.query(
-                    `SELECT p.*, u.carrera FROM perfiles p
-                     JOIN usuarios u ON u.id_usuario = p.id_usuario
-                     WHERE p.id_usuario = ?`, [tenantId]
-                );
-
-                roommates = grupoTenants.map(t => {
-                    let compat = null;
-                    if (miPerfil.length > 0 && t.id_usuario !== tenantId) {
-                        compat = calcularCompatibilidad(miPerfil[0], t);
-                    }
-                    return {
-                        id_usuario: t.id_usuario,
-                        nombre: t.nombre,
-                        apellido: t.apellido,
-                        avatar: (t.nombre[0] + t.apellido[0]).toUpperCase(),
-                        compatibilidad: compat,
-                    };
-                }).filter(r => r.id_usuario !== tenantId);
-            } else {
-                roommates = grupoTenants.map(t => ({
-                    id_usuario: t.id_usuario,
-                    nombre: t.nombre,
-                    apellido: t.apellido,
-                    avatar: (t.nombre[0] + t.apellido[0]).toUpperCase(),
-                    compatibilidad: null,
-                }));
-            }
-        } catch (e) {
-            console.error('Error getting property roommates:', e);
-        }
+        const propiedad = enriquecerPropiedadConCompatibilidad({
+            propiedad: propiedadBase,
+            tenantsActivos: tenantsPorPropiedad.get(id) || [],
+            tenantActualId: req.usuario?.id || null,
+            perfilActual,
+        });
 
         res.json({
             success: true,
             propiedad,
-            roommates,
         });
 
     } catch (error) {

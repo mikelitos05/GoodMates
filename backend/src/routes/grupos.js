@@ -10,17 +10,32 @@ const {
     validarUnionAConvivenciaActiva,
     enviarErrorRegla,
 } = require('../services/convivenciaRules');
+const {
+    crearPendienteCalificacionLandlordPorEgreso,
+} = require('../services/ratingsService');
 
 // Obtener el grupo de roommates del usuario autenticado
 router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res) => {
     try {
         // Buscar el grupo al que pertenece el usuario
         const [grupos] = await pool.query(
-            `SELECT g.*, mg.rol_en_grupo
+            `SELECT g.*, mg.rol_en_grupo,
+                    cg.calificacion_grupo_promedio, cg.calificacion_grupo_total,
+                    mcg.puntuacion AS mi_calificacion_grupo
        FROM grupos_roommates g
        JOIN miembros_grupo mg ON g.id_grupo = mg.id_grupo
+       LEFT JOIN (
+            SELECT id_grupo,
+                   ROUND(AVG(puntuacion), 1) AS calificacion_grupo_promedio,
+                   COUNT(*) AS calificacion_grupo_total
+            FROM calificaciones_grupo
+            GROUP BY id_grupo
+       ) cg ON cg.id_grupo = g.id_grupo
+       LEFT JOIN calificaciones_grupo mcg
+         ON mcg.id_grupo = g.id_grupo
+        AND mcg.id_usuario_calificador = ?
        WHERE mg.id_usuario = ? AND g.activo = TRUE`,
-            [req.usuario.id]
+            [req.usuario.id, req.usuario.id]
         );
 
         if (grupos.length === 0) {
@@ -35,18 +50,32 @@ router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res)
 
         // Obtener los miembros del grupo con sus datos basicos
         const [miembros] = await pool.query(
-            `SELECT u.id_usuario, u.nombre, u.apellido, u.email, mg.rol_en_grupo, mg.fecha_union
-       FROM miembros_grupo mg
-       JOIN usuarios u ON mg.id_usuario = u.id_usuario
-       WHERE mg.id_grupo = ?`,
-            [grupo.id_grupo]
+            `SELECT u.id_usuario, u.nombre, u.apellido, u.email, mg.rol_en_grupo, mg.fecha_union,
+                    cr.calificacion_promedio, cr.total_calificaciones,
+                    mc.puntuacion AS mi_calificacion
+             FROM miembros_grupo mg
+             JOIN usuarios u ON mg.id_usuario = u.id_usuario
+             LEFT JOIN (
+                SELECT id_usuario_calificado,
+                       ROUND(AVG(puntuacion), 1) AS calificacion_promedio,
+                       COUNT(*) AS total_calificaciones
+                FROM calificaciones
+                GROUP BY id_usuario_calificado
+             ) cr ON cr.id_usuario_calificado = u.id_usuario
+             LEFT JOIN calificaciones mc
+               ON mc.id_usuario_calificador = ?
+              AND mc.id_usuario_calificado = u.id_usuario
+              AND (mc.id_propiedad = ? OR (mc.id_propiedad IS NULL AND ? IS NULL))
+             WHERE mg.id_grupo = ?
+             ORDER BY mg.fecha_union ASC`,
+            [req.usuario.id, grupo.id_propiedad || null, grupo.id_propiedad || null, grupo.id_grupo]
         );
 
         // Obtener datos de la propiedad asociada si existe
         let propiedad = null;
         if (grupo.id_propiedad) {
             const [props] = await pool.query(
-                'SELECT titulo, direccion, ciudad FROM propiedades WHERE id_propiedad = ?',
+                'SELECT id_propiedad, titulo, direccion, ciudad FROM propiedades WHERE id_propiedad = ?',
                 [grupo.id_propiedad]
             );
             if (props.length > 0) propiedad = props[0];
@@ -58,6 +87,14 @@ router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res)
                 id: grupo.id_grupo,
                 nombre: grupo.nombre,
                 miRol: grupo.rol_en_grupo,
+                idPropiedad: grupo.id_propiedad || null,
+                calificacionGrupoPromedio: grupo.calificacion_grupo_promedio !== null && grupo.calificacion_grupo_promedio !== undefined
+                    ? Number(grupo.calificacion_grupo_promedio)
+                    : null,
+                calificacionGrupoTotal: Number(grupo.calificacion_grupo_total || 0),
+                miCalificacionGrupo: grupo.mi_calificacion_grupo !== null && grupo.mi_calificacion_grupo !== undefined
+                    ? Number(grupo.mi_calificacion_grupo)
+                    : null,
                 propiedad,
                 fechaCreacion: grupo.fecha_creacion,
                 miembros: miembros.map(m => ({
@@ -66,6 +103,13 @@ router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res)
                     avatar: (m.nombre[0] + m.apellido[0]).toUpperCase(),
                     rol: m.rol_en_grupo,
                     fechaUnion: m.fecha_union,
+                    calificacionPromedio: m.calificacion_promedio !== null
+                        ? Number(m.calificacion_promedio)
+                        : null,
+                    totalCalificaciones: Number(m.total_calificaciones || 0),
+                    miCalificacion: m.mi_calificacion !== null
+                        ? Number(m.mi_calificacion)
+                        : null,
                 })),
             },
         });
@@ -265,6 +309,11 @@ router.delete('/:id/miembros/:idUsuario', verificarToken, async (req, res) => {
             idTenant: idUsuario,
             incrementarDisponibilidad: true,
         });
+        const pendienteCalificacion = await crearPendienteCalificacionLandlordPorEgreso(connection, {
+            idTenant: idUsuario,
+            idPropiedad: resultado.idPropiedad,
+            motivo: 'salida_tenant',
+        });
         await connection.commit();
 
         res.json({
@@ -273,6 +322,7 @@ router.delete('/:id/miembros/:idUsuario', verificarToken, async (req, res) => {
                 ? 'Saliste del grupo exitosamente'
                 : 'Miembro removido del grupo',
             resultado,
+            pendiente_calificacion: pendienteCalificacion,
         });
 
     } catch (error) {

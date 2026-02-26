@@ -1,6 +1,27 @@
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
 
+async function obtenerUsuarioActivoPorId(idUsuario) {
+    const [rows] = await pool.query(
+        'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol, estado_cuenta FROM usuarios WHERE id_usuario = ?',
+        [idUsuario]
+    );
+
+    if (rows.length === 0) return null;
+
+    const usuario = rows[0];
+    if (usuario.estado_cuenta !== 'activo') return null;
+
+    return {
+        id: usuario.id_usuario,
+        nombre_usuario: usuario.nombre_usuario,
+        nombre: usuario.nombre,
+        apellido: usuario.apellido,
+        email: usuario.email,
+        rol: usuario.rol,
+    };
+}
+
 // Middleware para verificar el token JWT en las peticiones protegidas
 const verificarToken = async (req, res, next) => {
     try {
@@ -18,38 +39,14 @@ const verificarToken = async (req, res, next) => {
         const token = authHeader.split(' ')[1];
         const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-        // Buscar el usuario en la base de datos para confirmar que existe y esta activo
-        const [rows] = await pool.query(
-            'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol, estado_cuenta FROM usuarios WHERE id_usuario = ?',
-            [decoded.id]
-        );
-
-        if (rows.length === 0) {
+        const usuario = await obtenerUsuarioActivoPorId(decoded.id);
+        if (!usuario) {
             return res.status(401).json({
                 success: false,
                 message: 'Usuario no encontrado',
             });
         }
-
-        const usuario = rows[0];
-
-        // Verificar que la cuenta no este suspendida o dada de baja
-        if (usuario.estado_cuenta !== 'activo') {
-            return res.status(403).json({
-                success: false,
-                message: 'Cuenta suspendida o dada de baja',
-            });
-        }
-
-        // Adjuntar los datos del usuario a la peticion para uso posterior
-        req.usuario = {
-            id: usuario.id_usuario,
-            nombre_usuario: usuario.nombre_usuario,
-            nombre: usuario.nombre,
-            apellido: usuario.apellido,
-            email: usuario.email,
-            rol: usuario.rol,
-        };
+        req.usuario = usuario;
 
         next();
     } catch (error) {
@@ -90,4 +87,26 @@ const verificarRol = (...rolesPermitidos) => {
     };
 };
 
-module.exports = { verificarToken, verificarRol };
+// Middleware opcional: si hay token valido, adjunta req.usuario; si no, continua sin bloquear.
+const cargarUsuarioOpcional = async (req, res, next) => {
+    try {
+        const authHeader = req.headers.authorization;
+        if (!authHeader || !authHeader.startsWith('Bearer ')) {
+            return next();
+        }
+
+        const token = authHeader.split(' ')[1];
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        const usuario = await obtenerUsuarioActivoPorId(decoded.id);
+
+        if (usuario) {
+            req.usuario = usuario;
+        }
+    } catch (error) {
+        // Ignorar token invalido en endpoints publicos.
+    }
+
+    return next();
+};
+
+module.exports = { verificarToken, verificarRol, cargarUsuarioOpcional };

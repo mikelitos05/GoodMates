@@ -132,7 +132,7 @@ function ChatPage() {
                 <div className="chat-messages">
                     {mensajes.length === 0 && (
                         <div className="chat-empty">
-                            <p>👋 ¡Di hola! Comienza la conversación sobre la propiedad.</p>
+                            <p>Inicia la conversación sobre la propiedad.</p>
                         </div>
                     )}
                     {mensajes.map((msg) => {
@@ -169,7 +169,7 @@ function ChatPage() {
                         className="chat-send-btn"
                         disabled={!nuevoMensaje.trim() || sending}
                     >
-                        {sending ? '...' : '➤'}
+                        {sending ? '...' : 'Enviar'}
                     </button>
                 </form>
             </div>

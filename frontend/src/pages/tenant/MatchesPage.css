@@ -189,6 +189,11 @@
     margin-bottom: var(--space-1);
 }
 
+.match-rating-detail {
+    font-weight: 700;
+    color: var(--accent-700);
+}
+
 .match-tags {
     display: flex;
     flex-wrap: wrap;

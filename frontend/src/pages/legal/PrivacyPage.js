@@ -35,7 +35,7 @@ function PrivacyPage() {
                     {/* 1 */}
                     <div className="legal-card" id="p1">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🏢</div>
+                            <div className="legal-card-icon">Entidad</div>
                             <div>
                                 <h2 className="legal-card-title">1. Responsable del Tratamiento</h2>
                                 <p className="legal-card-subtitle">Quién gestiona tus datos</p>
@@ -55,7 +55,7 @@ function PrivacyPage() {
                     {/* 2 */}
                     <div className="legal-card" id="p2">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">📋</div>
+                            <div className="legal-card-icon">Datos</div>
                             <div>
                                 <h2 className="legal-card-title">2. Datos Personales que Recopilamos</h2>
                                 <p className="legal-card-subtitle">Información que solicitamos</p>
@@ -102,7 +102,7 @@ function PrivacyPage() {
                     {/* 3 */}
                     <div className="legal-card" id="p3">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🎯</div>
+                            <div className="legal-card-icon">Finalidad</div>
                             <div>
                                 <h2 className="legal-card-title">3. Finalidad del Tratamiento</h2>
                                 <p className="legal-card-subtitle">Para qué usamos tus datos</p>
@@ -134,7 +134,7 @@ function PrivacyPage() {
                     {/* 4 */}
                     <div className="legal-card" id="p4">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">📜</div>
+                            <div className="legal-card-icon">Base legal</div>
                             <div>
                                 <h2 className="legal-card-title">4. Base Legal del Tratamiento</h2>
                                 <p className="legal-card-subtitle">Fundamento jurídico</p>
@@ -153,7 +153,7 @@ function PrivacyPage() {
                     {/* 5 */}
                     <div className="legal-card" id="p5">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🔄</div>
+                            <div className="legal-card-icon">Uso</div>
                             <div>
                                 <h2 className="legal-card-title">5. Compartición de Datos</h2>
                                 <p className="legal-card-subtitle">Con quién compartimos tu información</p>
@@ -180,7 +180,7 @@ function PrivacyPage() {
                     {/* 6 */}
                     <div className="legal-card" id="p6">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🔒</div>
+                            <div className="legal-card-icon">Seguridad</div>
                             <div>
                                 <h2 className="legal-card-title">6. Seguridad de los Datos</h2>
                                 <p className="legal-card-subtitle">Medidas de protección implementadas</p>
@@ -201,7 +201,7 @@ function PrivacyPage() {
                     {/* 7 */}
                     <div className="legal-card" id="p7">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">✋</div>
+                            <div className="legal-card-icon">ARCO</div>
                             <div>
                                 <h2 className="legal-card-title">7. Derechos ARCO</h2>
                                 <p className="legal-card-subtitle">Acceso, Rectificación, Cancelación y Oposición</p>
@@ -224,7 +224,7 @@ function PrivacyPage() {
                     {/* 8 */}
                     <div className="legal-card" id="p8">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">⏱</div>
+                            <div className="legal-card-icon">Tiempo</div>
                             <div>
                                 <h2 className="legal-card-title">8. Retención de Datos</h2>
                                 <p className="legal-card-subtitle">Período de almacenamiento</p>
@@ -245,7 +245,7 @@ function PrivacyPage() {
                     {/* 9 */}
                     <div className="legal-card" id="p9">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🍪</div>
+                            <div className="legal-card-icon">Cookies</div>
                             <div>
                                 <h2 className="legal-card-title">9. Cookies y Tecnologías de Rastreo</h2>
                                 <p className="legal-card-subtitle">Uso de almacenamiento local</p>
@@ -264,7 +264,7 @@ function PrivacyPage() {
                     {/* 10 */}
                     <div className="legal-card" id="p10">
                         <div className="legal-card-header">
-                            <div className="legal-card-icon">🔔</div>
+                            <div className="legal-card-icon">Avisos</div>
                             <div>
                                 <h2 className="legal-card-title">10. Cambios al Aviso de Privacidad</h2>
                                 <p className="legal-card-subtitle">Actualizaciones futuras</p>

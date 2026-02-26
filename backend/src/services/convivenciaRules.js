@@ -237,10 +237,19 @@ async function removerTenantDeConvivenciaActiva(
 
 function enviarErrorRegla(res, error, fallbackMessage = 'Error de validacion de convivencia') {
     if (error && error.code && error.status) {
-        return res.status(error.status).json({
+        const payload = {
             success: false,
             code: error.code,
             message: error.message,
+        };
+        if (error.pendingRatings) {
+            payload.pending_ratings = error.pendingRatings;
+        }
+        if (error.details) {
+            payload.details = error.details;
+        }
+        return res.status(error.status).json({
+            ...payload,
         });
     }
 
