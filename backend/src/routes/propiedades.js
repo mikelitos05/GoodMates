@@ -46,6 +46,20 @@ const upload = multer({
     limits: { fileSize: 5 * 1024 * 1024 }, // Limite de 5MB por imagen
 });
 
+function tieneValor(valor) {
+    return valor !== undefined && valor !== null && valor !== '';
+}
+
+function parsearEntero(valor) {
+    const numero = Number.parseInt(valor, 10);
+    return Number.isNaN(numero) ? null : numero;
+}
+
+function parsearDecimal(valor) {
+    const numero = Number.parseFloat(valor);
+    return Number.isNaN(numero) ? null : numero;
+}
+
 // Listar propiedades con filtros opcionales y paginacion
 router.get('/', async (req, res) => {
     try {
@@ -314,6 +328,31 @@ router.post('/', verificarToken, verificarRol('landlord'), upload.array('imagene
             });
         }
 
+        const precioNumero = parsearDecimal(precio);
+        const habitacionesNumero = parsearEntero(habitaciones);
+        const banosNumero = parsearEntero(banos);
+        const habitacionesDisponiblesNumero = parsearEntero(habitaciones_disponibles);
+
+        if (
+            precioNumero === null || precioNumero <= 0 ||
+            habitacionesNumero === null || habitacionesNumero <= 0 ||
+            banosNumero === null || banosNumero <= 0 ||
+            habitacionesDisponiblesNumero === null || habitacionesDisponiblesNumero < 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Precio, habitaciones, banos y habitaciones disponibles deben ser valores validos',
+            });
+        }
+
+        if (habitacionesDisponiblesNumero > habitacionesNumero) {
+            return res.status(400).json({
+                success: false,
+                code: 'INVALID_AVAILABLE_ROOMS',
+                message: 'Las habitaciones disponibles no pueden ser mayores a las habitaciones totales',
+            });
+        }
+
         const id_propiedad = uuidv4();
 
         // Procesar las imagenes subidas
@@ -339,8 +378,8 @@ router.post('/', verificarToken, verificarRol('landlord'), upload.array('imagene
             [
                 id_propiedad, req.usuario.id, titulo, descripcion || null,
                 direccion || null, ciudad || null, estado || null,
-                parseFloat(precio), parseInt(habitaciones), parseInt(banos),
-                parseInt(habitaciones_disponibles),
+                precioNumero, habitacionesNumero, banosNumero,
+                habitacionesDisponiblesNumero,
                 min_meses_permanencia ? parseInt(min_meses_permanencia) : null,
                 area ? parseFloat(area) : null,
                 JSON.stringify(amenidadesArr), JSON.stringify(reglasArr),
@@ -413,6 +452,33 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
             ? (typeof lugares_cercanos === 'string' ? lugares_cercanos.split(',').map(l => l.trim()).filter(Boolean) : lugares_cercanos)
             : [];
 
+        const precioFinal = tieneValor(precio) ? parsearDecimal(precio) : parsearDecimal(existing[0].precio);
+        const habitacionesFinal = tieneValor(habitaciones) ? parsearEntero(habitaciones) : parsearEntero(existing[0].habitaciones);
+        const banosFinal = tieneValor(banos) ? parsearEntero(banos) : parsearEntero(existing[0].banos);
+        const habitacionesDisponiblesFinal = tieneValor(habitaciones_disponibles)
+            ? parsearEntero(habitaciones_disponibles)
+            : parsearEntero(existing[0].habitaciones_disponibles);
+
+        if (
+            precioFinal === null || precioFinal <= 0 ||
+            habitacionesFinal === null || habitacionesFinal <= 0 ||
+            banosFinal === null || banosFinal <= 0 ||
+            habitacionesDisponiblesFinal === null || habitacionesDisponiblesFinal < 0
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Precio, habitaciones, banos y habitaciones disponibles deben ser valores validos',
+            });
+        }
+
+        if (habitacionesDisponiblesFinal > habitacionesFinal) {
+            return res.status(400).json({
+                success: false,
+                code: 'INVALID_AVAILABLE_ROOMS',
+                message: 'Las habitaciones disponibles no pueden ser mayores a las habitaciones totales',
+            });
+        }
+
         await pool.query(
             `UPDATE propiedades SET
         titulo = ?, descripcion = ?, direccion = ?, ciudad = ?, estado = ?,
@@ -426,10 +492,10 @@ router.put('/:id', verificarToken, verificarRol('landlord'), upload.array('image
                 direccion || existing[0].direccion,
                 ciudad || existing[0].ciudad,
                 estado || existing[0].estado,
-                precio ? parseFloat(precio) : existing[0].precio,
-                habitaciones ? parseInt(habitaciones) : existing[0].habitaciones,
-                banos ? parseInt(banos) : existing[0].banos,
-                habitaciones_disponibles ? parseInt(habitaciones_disponibles) : existing[0].habitaciones_disponibles,
+                precioFinal,
+                habitacionesFinal,
+                banosFinal,
+                habitacionesDisponiblesFinal,
                 min_meses_permanencia !== undefined
                     ? (min_meses_permanencia ? parseInt(min_meses_permanencia) : null)
                     : existing[0].min_meses_permanencia,

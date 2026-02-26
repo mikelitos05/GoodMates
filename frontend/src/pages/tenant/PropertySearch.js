@@ -55,8 +55,9 @@ function MapUpdater({ properties }) {
 }
 
 function PropertySearch() {
+    const PRICE_FILTER_MAX = 50000;
     const [search, setSearch] = useState('');
-    const [priceRange, setPriceRange] = useState([0, 15000]);
+    const [priceRange, setPriceRange] = useState([0, PRICE_FILTER_MAX]);
     const [minRooms, setMinRooms] = useState(0);
     const [filterState, setFilterState] = useState('');
     const [filterCity, setFilterCity] = useState('');
@@ -86,7 +87,7 @@ function PropertySearch() {
             city.includes(search.toLowerCase()) ||
             address.includes(search.toLowerCase());
         const price = p.precio || p.price || 0;
-        const matchesPrice = price >= priceRange[0] && price <= priceRange[1];
+        const matchesPrice = priceRange[1] >= PRICE_FILTER_MAX || (price >= priceRange[0] && price <= priceRange[1]);
         const rooms = p.habitaciones_disponibles || p.availableRooms || 0;
         const matchesRooms = rooms >= minRooms;
         const available = p.disponible !== undefined ? p.disponible : (p.available !== undefined ? p.available : true);
@@ -229,8 +230,18 @@ function PropertySearch() {
                     <div className="filters-panel animate-fade-in">
                         <div className="filter-group">
                             <label className="form-label">Precio máximo (MXN/mes)</label>
-                            <input type="range" min="2000" max="15000" step="500" value={priceRange[1]} onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value)])} className="range-slider" />
-                            <span className="filter-value">${priceRange[1].toLocaleString()}</span>
+                            <input
+                                type="range"
+                                min="2000"
+                                max={PRICE_FILTER_MAX}
+                                step="500"
+                                value={priceRange[1]}
+                                onChange={(e) => setPriceRange([priceRange[0], parseInt(e.target.value, 10)])}
+                                className="range-slider"
+                            />
+                            <span className="filter-value">
+                                {priceRange[1] >= PRICE_FILTER_MAX ? 'Sin límite' : `$${priceRange[1].toLocaleString()}`}
+                            </span>
                         </div>
                         <div className="filter-group">
                             <label className="form-label">Estado</label>

@@ -235,6 +235,11 @@ function PropertyManager() {
             longitud: form.lng,
         };
 
+        if (propertyData.habitaciones_disponibles > propertyData.habitaciones) {
+            alert('Las habitaciones disponibles no pueden ser mayores a las habitaciones totales.');
+            return;
+        }
+
         let result;
         if (editingId) {
             result = await updateProperty(editingId, propertyData, imageFiles);
