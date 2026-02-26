@@ -9,7 +9,7 @@ router.get('/me', verificarToken, async (req, res) => {
     try {
         // Buscar el perfil del usuario en la tabla de perfiles
         const [rows] = await pool.query(
-            `SELECT p.*, u.nombre, u.apellido, u.email, u.universidad, u.carrera, u.genero, u.biografia
+            `SELECT p.*, u.nombre, u.apellido, u.email, u.universidad, u.carrera, u.genero, u.biografia, u.perfil_completo
        FROM perfiles p
        RIGHT JOIN usuarios u ON u.id_usuario = p.id_usuario
        WHERE u.id_usuario = ?`,
@@ -50,7 +50,8 @@ router.put('/me', verificarToken, async (req, res) => {
         const {
             edad, presupuesto, ciudad, horario, semestre, ocupacion,
             mascotas, fumador, limpieza, ruido, visitantes, hobbies,
-            universidad, carrera, genero, biografia
+            universidad, carrera, genero, biografia,
+            preferencia_visitantes, preferencia_social, preferencia_ruido, preferencia_mascotas,
         } = req.body;
 
         // Actualizar datos basicos en la tabla usuarios
@@ -69,20 +70,25 @@ router.put('/me', verificarToken, async (req, res) => {
         // Serializar hobbies a JSON para almacenar en la base de datos
         const hobbiesJson = hobbies ? JSON.stringify(hobbies) : null;
 
+        const profileFields = [
+            edad || null, presupuesto || null, ciudad || null, horario || null,
+            semestre || null, ocupacion || null, mascotas || false, fumador || false,
+            limpieza || 3, ruido || 3, visitantes || null, hobbiesJson,
+            preferencia_visitantes || null, preferencia_social || 3,
+            preferencia_ruido || 3, preferencia_mascotas || null,
+        ];
+
         if (existing.length > 0) {
             // Actualizar perfil existente
             await pool.query(
                 `UPDATE perfiles SET
           edad = ?, presupuesto = ?, ciudad = ?, horario = ?,
           semestre = ?, ocupacion = ?, mascotas = ?, fumador = ?,
-          limpieza = ?, ruido = ?, visitantes = ?, hobbies = ?
+          limpieza = ?, ruido = ?, visitantes = ?, hobbies = ?,
+          preferencia_visitantes = ?, preferencia_social = ?,
+          preferencia_ruido = ?, preferencia_mascotas = ?
          WHERE id_usuario = ?`,
-                [
-                    edad || null, presupuesto || null, ciudad || null, horario || null,
-                    semestre || null, ocupacion || null, mascotas || false, fumador || false,
-                    limpieza || 3, ruido || 3, visitantes || null, hobbiesJson,
-                    req.usuario.id
-                ]
+                [...profileFields, req.usuario.id]
             );
         } else {
             // Crear perfil nuevo
@@ -90,20 +96,24 @@ router.put('/me', verificarToken, async (req, res) => {
             await pool.query(
                 `INSERT INTO perfiles
           (id_perfil, id_usuario, edad, presupuesto, ciudad, horario,
-           semestre, ocupacion, mascotas, fumador, limpieza, ruido, visitantes, hobbies)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [
-                    id_perfil, req.usuario.id,
-                    edad || null, presupuesto || null, ciudad || null, horario || null,
-                    semestre || null, ocupacion || null, mascotas || false, fumador || false,
-                    limpieza || 3, ruido || 3, visitantes || null, hobbiesJson
-                ]
+           semestre, ocupacion, mascotas, fumador, limpieza, ruido, visitantes, hobbies,
+           preferencia_visitantes, preferencia_social, preferencia_ruido, preferencia_mascotas)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [id_perfil, req.usuario.id, ...profileFields]
             );
         }
+
+        // Determinar si el perfil esta completo (campos minimos requeridos)
+        const perfilCompleto = !!(edad && ciudad && horario && hobbies && hobbies.length > 0);
+        await pool.query(
+            'UPDATE usuarios SET perfil_completo = ? WHERE id_usuario = ?',
+            [perfilCompleto, req.usuario.id]
+        );
 
         res.json({
             success: true,
             message: 'Perfil actualizado exitosamente',
+            perfil_completo: perfilCompleto,
         });
 
     } catch (error) {
@@ -124,7 +134,8 @@ router.get('/:id', verificarToken, async (req, res) => {
         const [rows] = await pool.query(
             `SELECT u.id_usuario, u.nombre, u.apellido, u.universidad, u.carrera, u.genero, u.biografia,
               p.edad, p.presupuesto, p.ciudad, p.horario, p.semestre, p.ocupacion,
-              p.mascotas, p.fumador, p.limpieza, p.ruido, p.visitantes, p.hobbies
+              p.mascotas, p.fumador, p.limpieza, p.ruido, p.visitantes, p.hobbies,
+              p.preferencia_visitantes, p.preferencia_social, p.preferencia_ruido, p.preferencia_mascotas
        FROM usuarios u
        LEFT JOIN perfiles p ON u.id_usuario = p.id_usuario
        WHERE u.id_usuario = ? AND u.rol = 'tenant' AND u.estado_cuenta = 'activo'`,

@@ -346,6 +346,39 @@
     color: var(--accent-600);
 }
 
+.roommates-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.roommate-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding: var(--space-2) 0;
+    border-bottom: 1px solid var(--neutral-100);
+}
+
+.roommate-item:last-child {
+    border-bottom: none;
+}
+
+.roommate-info {
+    flex: 1;
+}
+
+.roommate-name {
+    font-size: var(--font-sm);
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.roommate-compat {
+    font-size: var(--font-sm);
+    font-weight: 800;
+}
+
 .not-found {
     text-align: center;
     padding: var(--space-16);

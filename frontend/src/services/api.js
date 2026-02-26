@@ -124,12 +124,16 @@ export const getProperties = async (filters = {}) => {
     if (filters.pagina) params.append('pagina', filters.pagina);
     if (filters.limite) params.append('limite', filters.limite);
 
-    return await apiRequest(`${API_URL}/propiedades?${params.toString()}`);
+    return await apiRequest(`${API_URL}/propiedades?${params.toString()}`, {
+        headers: authHeaders(),
+    });
 };
 
 // Obtener detalle de una propiedad
 export const getPropertyById = async (id) => {
-    return await apiRequest(`${API_URL}/propiedades/${id}`);
+    return await apiRequest(`${API_URL}/propiedades/${id}`, {
+        headers: authHeaders(),
+    });
 };
 
 // Obtener las propiedades del landlord autenticado
@@ -246,6 +250,21 @@ export const acceptMatch = async (matchId) => {
 export const rejectMatch = async (matchId) => {
     return await apiRequest(`${API_URL}/matches/${matchId}/rechazar`, {
         method: 'PUT',
+        headers: authHeaders(),
+    });
+};
+
+// Obtener todos los tenants con compatibilidad en tiempo real
+export const getAllTenantsCompatibility = async () => {
+    return await apiRequest(`${API_URL}/matches/all-tenants`, {
+        headers: authHeaders(),
+    });
+};
+
+// Solicitar un match con otro tenant
+export const requestMatch = async (targetUserId) => {
+    return await apiRequest(`${API_URL}/matches/${targetUserId}/solicitar`, {
+        method: 'POST',
         headers: authHeaders(),
     });
 };

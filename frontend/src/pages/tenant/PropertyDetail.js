@@ -21,6 +21,7 @@ function PropertyDetail() {
     const [mensajeBloqueo, setMensajeBloqueo] = useState('');
     const [activeImg, setActiveImg] = useState(0);
     const [lightbox, setLightbox] = useState(false);
+    const [roommates, setRoommates] = useState([]);
 
     // Keyboard navigation for lightbox
     const handleKeyDown = useCallback((e) => {
@@ -42,6 +43,9 @@ function PropertyDetail() {
             const result = await getPropertyById(id);
             if (result.success) {
                 setProperty(result.propiedad || result);
+                if (result.roommates) {
+                    setRoommates(result.roommates);
+                }
             }
             setLoading(false);
         };
@@ -367,6 +371,32 @@ function PropertyDetail() {
                                             <p className="landlord-name">{landlordNombre} {landlordApellido}</p>
                                             {landlordEmail && <p className="landlord-email">{landlordEmail}</p>}
                                         </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {roommates.length > 0 && (
+                                <div className="sidebar-card">
+                                    <h3 className="sidebar-card-title">Roommates en esta propiedad</h3>
+                                    <div className="roommates-list">
+                                        {roommates.map((r) => (
+                                            <div key={r.id_usuario} className="roommate-item">
+                                                <div className="avatar avatar-sm">{r.avatar}</div>
+                                                <div className="roommate-info">
+                                                    <span className="roommate-name">{r.nombre}</span>
+                                                </div>
+                                                {r.compatibilidad !== null && (
+                                                    <span
+                                                        className="roommate-compat"
+                                                        style={{
+                                                            color: r.compatibilidad >= 70 ? '#22c55e' : r.compatibilidad >= 40 ? '#f59e0b' : '#ef4444',
+                                                        }}
+                                                    >
+                                                        {r.compatibilidad}%
+                                                    </span>
+                                                )}
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
                             )}

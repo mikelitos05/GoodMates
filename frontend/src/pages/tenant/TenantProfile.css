@@ -147,6 +147,50 @@
     border-color: var(--primary-300);
 }
 
+.hobby-category-section {
+    margin-bottom: var(--space-5);
+}
+
+.hobby-category-title {
+    font-size: var(--font-sm);
+    font-weight: 700;
+    color: var(--primary-600);
+    margin-bottom: var(--space-2);
+    padding-bottom: var(--space-1);
+    border-bottom: 1px solid var(--neutral-100);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.profile-incomplete-banner {
+    background: linear-gradient(135deg, #fef3c7, #fde68a);
+    border: 1px solid #f59e0b;
+    border-radius: var(--radius-xl);
+    padding: var(--space-4) var(--space-6);
+    margin-bottom: var(--space-6);
+}
+
+.profile-incomplete-banner .banner-content {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.profile-incomplete-banner .banner-icon {
+    font-size: 1.5rem;
+}
+
+.profile-incomplete-banner strong {
+    color: #92400e;
+    font-size: var(--font-base);
+}
+
+.profile-incomplete-banner p {
+    color: #78350f;
+    font-size: var(--font-sm);
+    margin-top: var(--space-1);
+}
+
 
 .slider-group {
     display: flex;

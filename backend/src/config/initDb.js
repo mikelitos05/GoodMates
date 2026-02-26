@@ -35,6 +35,7 @@ const initDatabase = async () => {
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         estado_cuenta ENUM('activo', 'suspendido', 'baja') DEFAULT 'activo',
         rol ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant',
+        perfil_completo BOOLEAN NOT NULL DEFAULT FALSE,
         modo_busqueda_activo BOOLEAN NOT NULL DEFAULT FALSE,
         fecha_activacion_busqueda TIMESTAMP NULL,
         id_solicitud_traslado_pendiente CHAR(36) NULL,
@@ -76,6 +77,13 @@ const initDatabase = async () => {
         console.error('Error agregando indice idx_traslado_pendiente en usuarios:', e.message);
       }
     }
+    try {
+      await pool.query('ALTER TABLE usuarios ADD COLUMN perfil_completo BOOLEAN NOT NULL DEFAULT FALSE');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando perfil_completo en usuarios:', e.message);
+      }
+    }
 
     // Tabla de perfiles extendidos (informacion detallada del tenant para compatibilidad)
     await pool.query(`
@@ -94,6 +102,10 @@ const initDatabase = async () => {
         ruido INT DEFAULT 3 CHECK (ruido BETWEEN 1 AND 5),
         visitantes ENUM('Raramente', 'Ocasionalmente', 'Frecuentemente'),
         hobbies JSON,
+        preferencia_visitantes VARCHAR(30),
+        preferencia_social INT DEFAULT 3 CHECK (preferencia_social BETWEEN 1 AND 5),
+        preferencia_ruido INT DEFAULT 3 CHECK (preferencia_ruido BETWEEN 1 AND 5),
+        preferencia_mascotas VARCHAR(30),
         fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario) ON DELETE CASCADE,
         INDEX idx_ciudad (ciudad),
@@ -101,6 +113,23 @@ const initDatabase = async () => {
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla perfiles verificada');
+
+    // Agregar columnas de preferencias a perfiles para bases existentes
+    const newPerfilCols = [
+      { col: 'preferencia_visitantes', def: "VARCHAR(30)" },
+      { col: 'preferencia_social', def: "INT DEFAULT 3" },
+      { col: 'preferencia_ruido', def: "INT DEFAULT 3" },
+      { col: 'preferencia_mascotas', def: "VARCHAR(30)" },
+    ];
+    for (const { col, def } of newPerfilCols) {
+      try {
+        await pool.query(`ALTER TABLE perfiles ADD COLUMN ${col} ${def}`);
+      } catch (e) {
+        if (!e.message.includes('Duplicate column')) {
+          console.error(`Error agregando ${col} en perfiles:`, e.message);
+        }
+      }
+    }
 
     // Tabla de propiedades (inmuebles publicados por landlords)
     await pool.query(`

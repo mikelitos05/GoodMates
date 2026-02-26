@@ -50,6 +50,7 @@ export function AuthProvider({ children }) {
             setUser((prev) => ({
                 ...prev,
                 profile: { ...prev?.profile, ...profileData },
+                perfil_completo: result.perfil_completo !== undefined ? result.perfil_completo : prev?.perfil_completo,
             }));
         }
         return result;

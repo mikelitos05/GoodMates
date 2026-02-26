@@ -113,6 +113,7 @@ router.post('/register', async (req, res) => {
                 email,
                 role: userRole,
                 avatar: (nombre[0] + apellido[0]).toUpperCase(),
+                perfil_completo: false,
             },
         });
 
@@ -199,6 +200,7 @@ router.post('/login', async (req, res) => {
                 email: user.email,
                 role: user.rol,
                 avatar: (user.nombre[0] + user.apellido[0]).toUpperCase(),
+                perfil_completo: !!user.perfil_completo,
             },
         });
 
@@ -254,6 +256,7 @@ router.get('/verify', async (req, res) => {
                 email: user.email,
                 role: user.rol,
                 avatar: (user.nombre[0] + user.apellido[0]).toUpperCase(),
+                perfil_completo: !!user.perfil_completo,
             },
         });
 

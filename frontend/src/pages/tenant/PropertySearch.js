@@ -7,19 +7,12 @@ import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import { getCoordinates, MEXICO_CENTER, MEXICO_ZOOM } from '../../data/cityCoordinates';
 import './PropertySearch.css';
 
-/* ───── helper: compatibilidad simulada por propiedad ───── */
+/* ───── helper: compatibilidad real por propiedad ───── */
 function getCompatibility(property) {
-    // Si el backend provee un % real, usarlo
-    if (property.compatibilidad !== undefined) return property.compatibilidad;
-    if (property.compatibility !== undefined) return property.compatibility;
-    // Simular un % basado en hash del id para que sea consistente
-    const id = property.id_propiedad || property.id || '';
-    let hash = 0;
-    for (let i = 0; i < id.length; i++) {
-        hash = ((hash << 5) - hash) + id.charCodeAt(i);
-        hash |= 0;
-    }
-    return Math.abs(hash % 101); // 0-100
+    // Use real backend-computed compatibility (average with property group tenants)
+    if (property.compatibilidad !== undefined && property.compatibilidad !== null) return property.compatibilidad;
+    if (property.compatibility !== undefined && property.compatibility !== null) return property.compatibility;
+    return null; // No group tenants → no compatibility data
 }
 
 /* ───── helper: color semáforo ───── */
@@ -133,13 +126,15 @@ function PropertySearch() {
                 <div className="property-info">
                     <div className="property-info-top">
                         <h3 className="property-title">{title}</h3>
-                        <span
-                            className="property-match-badge"
-                            style={{ background: matchColor(compat) }}
-                            title={`${compat}% compatibilidad`}
-                        >
-                            {compat}%
-                        </span>
+                        {compat !== null && (
+                            <span
+                                className="property-match-badge"
+                                style={{ background: matchColor(compat) }}
+                                title={`${compat}% compatibilidad`}
+                            >
+                                {compat}%
+                            </span>
+                        )}
                     </div>
                     <p className="property-location">
                         {address}{address && city ? ', ' : ''}{city}{city && state ? ', ' : ''}{state}

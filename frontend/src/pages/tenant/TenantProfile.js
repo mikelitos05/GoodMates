@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getUserRatings, getMyProfile, updateProfile as apiUpdateProfile } from '../../services/api';
+import careerCategories from '../../data/careerOptions';
+import hobbyCategories from '../../data/hobbyOptions';
 import './TenantProfile.css';
 
 function TenantProfile() {
-    const { user } = useAuth();
+    const { user, updateProfile: ctxUpdateProfile } = useAuth();
     const [profile, setProfile] = useState({});
     const [saved, setSaved] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -12,6 +14,7 @@ function TenantProfile() {
     const [reputacion, setReputacion] = useState(null);
     const [calificaciones, setCalificaciones] = useState([]);
     const [loading, setLoading] = useState(true);
+    const isProfileIncomplete = !user?.perfil_completo;
 
     // Cargar perfil del backend al montar
     useEffect(() => {
@@ -37,6 +40,10 @@ function TenantProfile() {
                     limpieza: p.limpieza || 3,
                     ruido: p.ruido || 3,
                     hobbies: (typeof p.hobbies === 'string' ? JSON.parse(p.hobbies) : p.hobbies) || [],
+                    preferencia_visitantes: p.preferencia_visitantes || '',
+                    preferencia_social: p.preferencia_social || 3,
+                    preferencia_ruido: p.preferencia_ruido || 3,
+                    preferencia_mascotas: p.preferencia_mascotas || '',
                 });
             }
             setLoading(false);
@@ -74,7 +81,7 @@ function TenantProfile() {
 
     const handleSave = async () => {
         setSaving(true);
-        const result = await apiUpdateProfile(profile);
+        const result = await ctxUpdateProfile(profile);
         setSaving(false);
         if (result.success) {
             setSaved(true);
@@ -84,12 +91,6 @@ function TenantProfile() {
         }
     };
 
-    const allHobbies = [
-        'Videojuegos', 'Gimnasio', 'Cocinar', 'Lectura', 'Yoga', 'Series',
-        'Arte', 'Música', 'Fotografía', 'Running', 'Netflix', 'Deportes',
-        'Viajes', 'Películas', 'Baile', 'Programación',
-    ];
-
     const sections = [
         { id: 'personal', label: 'Personal', icon: '' },
         { id: 'academic', label: 'Académico', icon: '' },
@@ -98,10 +99,24 @@ function TenantProfile() {
         { id: 'reputation', label: 'Reputación', icon: '' },
     ];
 
+    const socialLabels = ['Introvertido', '', 'Neutral', '', 'Extrovertido'];
+    const ruidoLabels = ['Silencio total', '', 'Neutral', '', 'No me importa'];
 
     return (
         <div className="profile-page">
             <div className="container">
+                {isProfileIncomplete && (
+                    <div className="profile-incomplete-banner animate-fade-in-up">
+                        <div className="banner-content">
+                            <span className="banner-icon">⚠️</span>
+                            <div>
+                                <strong>Completa tu perfil</strong>
+                                <p>Necesitas completar tu perfil para usar la plataforma. Llena al menos: edad, ciudad, horario y hobbies.</p>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
                 <div className="profile-header animate-fade-in-up">
                     <div className="profile-header-left">
                         <div className="avatar avatar-xl">{user?.avatar}</div>
@@ -206,13 +221,20 @@ function TenantProfile() {
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Carrera</label>
-                                        <input
-                                            type="text"
-                                            className="form-input"
+                                        <select
+                                            className="form-select"
                                             value={profile.carrera || ''}
                                             onChange={(e) => handleChange('carrera', e.target.value)}
-                                            placeholder="Tu carrera"
-                                        />
+                                        >
+                                            <option value="">Seleccionar carrera</option>
+                                            {careerCategories.map((cat) => (
+                                                <optgroup key={cat.category} label={cat.category}>
+                                                    {cat.careers.map((career) => (
+                                                        <option key={career} value={career}>{career}</option>
+                                                    ))}
+                                                </optgroup>
+                                            ))}
+                                        </select>
                                     </div>
                                     <div className="form-group">
                                         <label className="form-label">Semestre</label>
@@ -276,17 +298,22 @@ function TenantProfile() {
 
                                 <div className="form-group" style={{ marginTop: 'var(--space-6)' }}>
                                     <label className="form-label">Hobbies e intereses</label>
-                                    <div className="hobbies-grid">
-                                        {allHobbies.map((hobby) => (
-                                            <button
-                                                key={hobby}
-                                                className={`hobby-tag ${(profile.hobbies || []).includes(hobby) ? 'selected' : ''}`}
-                                                onClick={() => handleHobbiesChange(hobby)}
-                                            >
-                                                {hobby}
-                                            </button>
-                                        ))}
-                                    </div>
+                                    {hobbyCategories.map((cat) => (
+                                        <div key={cat.category} className="hobby-category-section">
+                                            <h4 className="hobby-category-title">{cat.category}</h4>
+                                            <div className="hobbies-grid">
+                                                {cat.hobbies.map((hobby) => (
+                                                    <button
+                                                        key={hobby}
+                                                        className={`hobby-tag ${(profile.hobbies || []).includes(hobby) ? 'selected' : ''}`}
+                                                        onClick={() => handleHobbiesChange(hobby)}
+                                                    >
+                                                        {hobby}
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
                         )}
@@ -332,6 +359,66 @@ function TenantProfile() {
                                             <span>Silencio total</span>
                                             <span>No me importa</span>
                                         </div>
+                                    </div>
+
+                                    <div className="slider-item">
+                                        <div className="slider-header">
+                                            <label className="form-label">Preferencia social</label>
+                                            <span className="slider-value">{socialLabels[(profile.preferencia_social || 3) - 1] || `${profile.preferencia_social}/5`}</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="5"
+                                            value={profile.preferencia_social || 3}
+                                            onChange={(e) => handleChange('preferencia_social', parseInt(e.target.value))}
+                                            className="range-slider"
+                                        />
+                                        <div className="slider-labels">
+                                            <span>Introvertido</span>
+                                            <span>Extrovertido</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="slider-item">
+                                        <div className="slider-header">
+                                            <label className="form-label">Preferencia de ruido (música, TV)</label>
+                                            <span className="slider-value">{ruidoLabels[(profile.preferencia_ruido || 3) - 1] || `${profile.preferencia_ruido}/5`}</span>
+                                        </div>
+                                        <input
+                                            type="range"
+                                            min="1"
+                                            max="5"
+                                            value={profile.preferencia_ruido || 3}
+                                            onChange={(e) => handleChange('preferencia_ruido', parseInt(e.target.value))}
+                                            className="range-slider"
+                                        />
+                                        <div className="slider-labels">
+                                            <span>Silencio total</span>
+                                            <span>No me importa</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="profile-form-grid" style={{ marginTop: 'var(--space-6)' }}>
+                                    <div className="form-group">
+                                        <label className="form-label">Tolerancia a visitantes de otros</label>
+                                        <select className="form-select" value={profile.preferencia_visitantes || ''} onChange={(e) => handleChange('preferencia_visitantes', e.target.value)}>
+                                            <option value="">Seleccionar</option>
+                                            <option value="Me agrada">Me agrada</option>
+                                            <option value="No me importa">No me importa</option>
+                                            <option value="No me agrada">No me agrada</option>
+                                        </select>
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Preferencia sobre mascotas</label>
+                                        <select className="form-select" value={profile.preferencia_mascotas || ''} onChange={(e) => handleChange('preferencia_mascotas', e.target.value)}>
+                                            <option value="">Seleccionar</option>
+                                            <option value="Me gustan">Me gustan</option>
+                                            <option value="No me importan">No me importan</option>
+                                            <option value="No me gustan">No me gustan</option>
+                                            <option value="Soy alérgico">Soy alérgico/a</option>
+                                        </select>
                                     </div>
                                 </div>
                             </div>

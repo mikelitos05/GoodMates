@@ -41,7 +41,12 @@ function RegisterPage() {
         try {
             const result = await register(nombreUsuario, nombre, apellido, email, password, role);
             if (result.success) {
-                navigate(`/${role}/dashboard`);
+                // Tenants go to profile to complete it, landlords go to dashboard
+                if (role === 'tenant') {
+                    navigate('/tenant/profile');
+                } else {
+                    navigate(`/${role}/dashboard`);
+                }
             } else {
                 setError(result.error || 'Error al registrar');
             }
