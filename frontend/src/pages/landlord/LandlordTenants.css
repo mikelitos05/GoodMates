@@ -1,0 +1,165 @@
+.landlord-tenants-page {
+    padding: var(--space-6) 0;
+}
+
+.landlord-tenants-header {
+    margin-bottom: var(--space-5);
+}
+
+.landlord-tenants-alert {
+    border-radius: var(--radius-md);
+    padding: var(--space-3) var(--space-4);
+    margin-bottom: var(--space-4);
+    border: 1px solid transparent;
+}
+
+.landlord-tenants-alert--success {
+    border-color: var(--success, #22c55e);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.landlord-tenants-alert--error {
+    border-color: var(--danger, #ef4444);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.landlord-tenants-filter {
+    margin-bottom: var(--space-5);
+}
+
+.landlord-pending-panel {
+    background: #fff;
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-lg);
+    padding: var(--space-4);
+    margin-bottom: var(--space-5);
+}
+
+.landlord-pending-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+}
+
+.landlord-pending-header h2 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.landlord-pending-count {
+    font-size: var(--font-xs);
+    color: var(--text-muted, #6b7280);
+    font-weight: 700;
+}
+
+.landlord-pending-count.is-active {
+    color: var(--danger, #ef4444);
+}
+
+.landlord-pending-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.landlord-pending-item {
+    border: 1px solid var(--border, #e5e7eb);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.landlord-pending-title {
+    margin: 0;
+    font-weight: 700;
+}
+
+.landlord-pending-meta {
+    margin: 2px 0 0;
+    color: var(--text-muted, #6b7280);
+    font-size: 0.88rem;
+}
+
+.landlord-pending-actions {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.landlord-tenants-filter label {
+    display: block;
+    margin-bottom: var(--space-2);
+    font-weight: 600;
+}
+
+.landlord-tenants-list {
+    display: grid;
+    gap: var(--space-4);
+}
+
+.landlord-tenant-card {
+    background: var(--surface, #ffffff);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border, #e5e7eb);
+    padding: var(--space-4);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+}
+
+.landlord-tenant-main {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.landlord-tenant-name {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.landlord-tenant-email,
+.landlord-tenant-meta {
+    margin: 2px 0 0;
+    color: var(--text-muted, #6b7280);
+    font-size: 0.92rem;
+}
+
+.landlord-tenant-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+@media (max-width: 768px) {
+    .landlord-pending-item {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .landlord-pending-actions {
+        width: 100%;
+    }
+
+    .landlord-pending-actions .btn {
+        flex: 1;
+    }
+
+    .landlord-tenant-card {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .landlord-tenant-actions {
+        width: 100%;
+    }
+
+    .landlord-tenant-actions .btn {
+        flex: 1;
+    }
+}

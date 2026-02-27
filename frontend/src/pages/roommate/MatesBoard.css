@@ -1,0 +1,204 @@
+.board-page {
+    padding: var(--space-8) 0 var(--space-16);
+    min-height: calc(100vh - 64px);
+}
+
+.board-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-8);
+    flex-wrap: wrap;
+    gap: var(--space-4);
+}
+
+
+.board-form-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    border: 1px solid var(--neutral-200);
+    margin-bottom: var(--space-8);
+}
+
+.board-form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-4);
+}
+
+.post-type-selector {
+    display: flex;
+    gap: var(--space-2);
+}
+
+.post-type-btn {
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    font-size: var(--font-sm);
+    font-weight: 500;
+    border: 1px solid var(--neutral-200);
+    background: white;
+    color: var(--text-dark-secondary);
+    transition: all var(--transition-fast);
+}
+
+.post-type-btn.active {
+    background: var(--primary-50);
+    border-color: var(--primary-400);
+    color: var(--primary-600);
+}
+
+.post-type-btn:hover {
+    border-color: var(--primary-300);
+}
+
+
+.post-feed {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+}
+
+.post-card {
+    background: white;
+    border-radius: var(--radius-xl);
+    padding: var(--space-6);
+    border: 1px solid var(--neutral-200);
+    transition: all var(--transition-base);
+}
+
+.post-card:hover {
+    box-shadow: var(--shadow-sm);
+}
+
+.post-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--space-4);
+}
+
+.post-author {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
+.post-author-name {
+    font-size: var(--font-sm);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.post-date {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+.post-type-badge {
+    padding: var(--space-1) var(--space-3);
+    border-radius: var(--radius-full);
+    font-size: var(--font-xs);
+    font-weight: 600;
+}
+
+.post-type-badge.announcement {
+    background: var(--primary-100);
+    color: var(--primary-700);
+}
+
+.post-type-badge.discussion {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.post-type-badge.event {
+    background: var(--accent-100);
+    color: var(--accent-700);
+}
+
+.post-title {
+    font-size: var(--font-lg);
+    font-weight: 700;
+    color: var(--text-dark);
+    margin-bottom: var(--space-2);
+}
+
+.post-content {
+    font-size: var(--font-sm);
+    color: var(--text-dark-secondary);
+    line-height: 1.7;
+    margin-bottom: var(--space-4);
+}
+
+
+.post-replies {
+    border-top: 1px solid var(--neutral-100);
+    padding-top: var(--space-4);
+    margin-bottom: var(--space-4);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
+.reply-item {
+    display: flex;
+    gap: var(--space-3);
+    padding: var(--space-3);
+    background: var(--neutral-50);
+    border-radius: var(--radius-lg);
+}
+
+.reply-author {
+    font-size: var(--font-xs);
+    font-weight: 700;
+    color: var(--text-dark);
+}
+
+.reply-text {
+    font-size: var(--font-sm);
+    color: var(--text-dark-secondary);
+    margin: var(--space-1) 0;
+}
+
+.reply-date {
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+
+.reply-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    padding-top: var(--space-3);
+    border-top: 1px solid var(--neutral-100);
+}
+
+.reply-input {
+    flex: 1;
+    padding: var(--space-2) var(--space-4);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--neutral-200);
+    font-size: var(--font-sm);
+    transition: border-color var(--transition-fast);
+    background: var(--neutral-50);
+}
+
+.reply-input:focus {
+    border-color: var(--primary-400);
+    background: white;
+}
+
+@media (max-width: 640px) {
+    .post-type-selector {
+        flex-wrap: wrap;
+    }
+
+    .post-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: var(--space-2);
+    }
+}
