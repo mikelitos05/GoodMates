@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRatings, getMatches, getMyGroup, getTenantPendingLandlordRatings, rateRoommate } from '../../services/api';
+import { getUserRatings, getMatches, getMyGroup, getTenantPendingLandlordRatings, rateRoommate, getGroupTasks, getBoardPosts } from '../../services/api';
 import RatingModal from '../../components/shared/RatingModal';
 import './TenantDashboard.css';
 
@@ -13,6 +13,10 @@ function TenantDashboard() {
     const [pendingLandlordRatings, setPendingLandlordRatings] = useState([]);
     const [ratingTargetPendingLandlord, setRatingTargetPendingLandlord] = useState(null);
     const [submittingPendingRating, setSubmittingPendingRating] = useState(false);
+
+    // New state for Mis Tareas and Mates Board
+    const [myPendingTasks, setMyPendingTasks] = useState([]);
+    const [latestPost, setLatestPost] = useState(null);
 
     const normalizeMatch = (m) => ({
         ...m,
@@ -36,7 +40,32 @@ function TenantDashboard() {
             if (matchesRes.success) {
                 setMatches((matchesRes.matches || []).map(normalizeMatch));
             }
-            if (groupRes.success) setGroup(groupRes.grupo || null);
+            if (groupRes.success && groupRes.grupo) {
+                setGroup(groupRes.grupo);
+
+                // Fetch group data
+                const [tasksRes, boardRes] = await Promise.all([
+                    getGroupTasks(groupRes.grupo.id),
+                    getBoardPosts(groupRes.grupo.id)
+                ]);
+
+                if (tasksRes.success) {
+                    const allTasks = tasksRes.tareas || [];
+                    const pendingForMe = allTasks.filter(t =>
+                        t.assigneeId === user.id &&
+                        t.status !== 'completada' &&
+                        t.status !== 'completed'
+                    );
+                    setMyPendingTasks(pendingForMe);
+                }
+
+                if (boardRes.success) {
+                    const posts = boardRes.publicaciones || [];
+                    if (posts.length > 0) {
+                        setLatestPost(posts[0]);
+                    }
+                }
+            }
 
             const tenantPendingRes = await getTenantPendingLandlordRatings();
             if (tenantPendingRes.success) {
@@ -78,6 +107,12 @@ function TenantDashboard() {
         return true;
     };
 
+    const typeLabels = {
+        announcement: 'Aviso',
+        discussion: 'Discusión',
+        event: 'Evento',
+    };
+
     return (
         <div className="dashboard-page">
             <div className="container">
@@ -105,7 +140,7 @@ function TenantDashboard() {
                     </div>
                     <div className="stat-card">
                         <div className="stat-icon">Tareas</div>
-                        <div className="stat-value">0</div>
+                        <div className="stat-value">{myPendingTasks.length}</div>
                         <div className="stat-label">Tareas Pendientes</div>
                     </div>
                     <div className="stat-card">
@@ -163,17 +198,60 @@ function TenantDashboard() {
                             <Link to="/roommate/tasks" className="btn btn-ghost btn-sm">Ver todas →</Link>
                         </div>
                         <div className="dashboard-card-body">
-                            <p className="empty-state">No tienes tareas pendientes</p>
+                            {myPendingTasks.length > 0 ? (
+                                <div className="match-preview-list">
+                                    {myPendingTasks.slice(0, 3).map((task) => (
+                                        <div key={task.id} className="match-preview-item" style={{ alignItems: 'center' }}>
+                                            <div className="match-preview-info">
+                                                <p className="match-preview-name" style={{ fontWeight: 600 }}>{task.title}</p>
+                                                {task.dueDate && <p className="match-preview-detail">Vence: {task.dueDate.split('T')[0]}</p>}
+                                            </div>
+                                            <span className="badge badge-warning">Pendiente</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <p className="empty-state">No tienes tareas pendientes</p>
+                            )}
                         </div>
                     </div>
 
-                    <div className="dashboard-card">
+                    <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
                         <div className="dashboard-card-header">
                             <h2 className="dashboard-card-title">Mates Board</h2>
                             <Link to="/roommate/board" className="btn btn-ghost btn-sm">Ver Mates Board →</Link>
                         </div>
                         <div className="dashboard-card-body">
-                            <p className="empty-state">Consulta avisos y conversación de tu grupo.</p>
+                            {latestPost ? (
+                                <div className="dashboard-board-preview">
+                                    <div className="preview-post-header">
+                                        <div className="avatar avatar-sm">{latestPost.authorAvatar || '??'}</div>
+                                        <div>
+                                            <p className="match-preview-name">{latestPost.authorName}</p>
+                                            <p className="match-preview-detail">{typeLabels[latestPost.type] || latestPost.type}</p>
+                                        </div>
+                                    </div>
+                                    <h3 style={{ fontSize: '15px', marginTop: '8px', marginBottom: '4px' }}>{latestPost.title}</h3>
+                                    <p style={{ fontSize: '13px', color: 'var(--text-dark-secondary)', marginBottom: '12px' }}>{latestPost.content}</p>
+
+                                    {latestPost.replies && latestPost.replies.length > 0 && (
+                                        <div style={{ borderTop: '1px solid var(--neutral-100)', paddingTop: '8px', marginTop: '8px' }}>
+                                            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600 }}>Últimos comentarios ({latestPost.replies.length})</p>
+                                            {latestPost.replies.slice(-2).map(reply => (
+                                                <div key={reply.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', background: 'var(--neutral-50)', padding: '8px', borderRadius: '8px' }}>
+                                                    <div className="avatar avatar-sm" style={{ width: '24px', height: '24px', fontSize: '10px' }}>{reply.authorAvatar || '??'}</div>
+                                                    <div>
+                                                        <span style={{ fontSize: '12px', fontWeight: 600, display: 'block' }}>{reply.authorName}</span>
+                                                        <span style={{ fontSize: '13px', color: 'var(--text-dark-secondary)' }}>{reply.content}</span>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ) : (
+                                <p className="empty-state">Consulta avisos y conversación de tu grupo.</p>
+                            )}
                         </div>
                     </div>
 

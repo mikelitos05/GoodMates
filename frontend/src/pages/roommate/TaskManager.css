@@ -206,3 +206,44 @@
         opacity: 1;
     }
 }
+
+/* Week Navigation */
+.week-navigation {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-4);
+    margin-bottom: var(--space-6);
+    background: white;
+    padding: var(--space-3);
+    border-radius: var(--radius-full);
+    border: 1px solid var(--neutral-200);
+}
+
+.btn-icon {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-full);
+    background: var(--neutral-100);
+}
+
+.btn-icon:hover {
+    background: var(--neutral-200);
+}
+
+.week-label {
+    display: flex;
+    align-items: center;
+    font-size: var(--font-base);
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.badge-sm {
+    padding: var(--space-1) var(--space-2);
+    font-size: 10px;
+}

@@ -137,6 +137,52 @@ router.post('/', verificarToken, async (req, res) => {
     }
 });
 
+// Editar una publicacion (solo el autor puede editar)
+router.put('/:id', verificarToken, async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { titulo, contenido, tipo } = req.body;
+
+        // Verificar que la publicacion existe y pertenece al usuario
+        const [publicacion] = await pool.query(
+            'SELECT * FROM publicaciones_board WHERE id_publicacion = ? AND id_autor = ?',
+            [id, req.usuario.id]
+        );
+
+        if (publicacion.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Publicacion no encontrada o no tienes permiso para editarla',
+            });
+        }
+
+        const tiposValidos = ['announcement', 'discussion', 'event'];
+        const tipoFinal = tiposValidos.includes(tipo) ? tipo : publicacion[0].tipo;
+
+        await pool.query(
+            `UPDATE publicaciones_board SET titulo = ?, contenido = ?, tipo = ? WHERE id_publicacion = ?`,
+            [
+                titulo || publicacion[0].titulo,
+                contenido || publicacion[0].contenido,
+                tipoFinal,
+                id,
+            ]
+        );
+
+        res.json({
+            success: true,
+            message: 'Publicacion actualizada exitosamente',
+        });
+
+    } catch (error) {
+        console.error('Error editando publicacion:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    }
+});
+
 // Responder a una publicacion del board
 router.post('/:id/respuestas', verificarToken, async (req, res) => {
     try {
@@ -194,6 +240,85 @@ router.post('/:id/respuestas', verificarToken, async (req, res) => {
 
     } catch (error) {
         console.error('Error respondiendo publicacion:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    }
+});
+
+// Editar una respuesta (solo el autor puede editar)
+router.put('/:idPost/respuestas/:idReply', verificarToken, async (req, res) => {
+    try {
+        const { idReply } = req.params;
+        const { contenido } = req.body;
+
+        if (!contenido) {
+            return res.status(400).json({
+                success: false,
+                message: 'El contenido de la respuesta es obligatorio',
+            });
+        }
+
+        // Verificar que la respuesta existe y pertenece al usuario
+        const [respuesta] = await pool.query(
+            'SELECT * FROM respuestas_board WHERE id_respuesta = ? AND id_autor = ?',
+            [idReply, req.usuario.id]
+        );
+
+        if (respuesta.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Respuesta no encontrada o no tienes permiso para editarla',
+            });
+        }
+
+        await pool.query(
+            'UPDATE respuestas_board SET contenido = ? WHERE id_respuesta = ?',
+            [contenido, idReply]
+        );
+
+        res.json({
+            success: true,
+            message: 'Respuesta actualizada exitosamente',
+        });
+
+    } catch (error) {
+        console.error('Error editando respuesta:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Error interno del servidor',
+        });
+    }
+});
+
+// Eliminar una respuesta (solo el autor puede eliminar)
+router.delete('/:idPost/respuestas/:idReply', verificarToken, async (req, res) => {
+    try {
+        const { idReply } = req.params;
+
+        // Verificar que la respuesta existe y pertenece al usuario
+        const [respuesta] = await pool.query(
+            'SELECT * FROM respuestas_board WHERE id_respuesta = ? AND id_autor = ?',
+            [idReply, req.usuario.id]
+        );
+
+        if (respuesta.length === 0) {
+            return res.status(404).json({
+                success: false,
+                message: 'Respuesta no encontrada o no tienes permiso para eliminarla',
+            });
+        }
+
+        await pool.query('DELETE FROM respuestas_board WHERE id_respuesta = ?', [idReply]);
+
+        res.json({
+            success: true,
+            message: 'Respuesta eliminada exitosamente',
+        });
+
+    } catch (error) {
+        console.error('Error eliminando respuesta:', error);
         res.status(500).json({
             success: false,
             message: 'Error interno del servidor',

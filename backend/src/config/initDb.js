@@ -248,16 +248,34 @@ const initDatabase = async () => {
         id_asignado CHAR(36),
         estado ENUM('pendiente', 'en_progreso', 'completada') DEFAULT 'pendiente',
         fecha_vencimiento DATE,
+        semana_inicio DATE,
         fecha_creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         fecha_actualizacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         FOREIGN KEY (id_grupo) REFERENCES grupos_roommates(id_grupo) ON DELETE CASCADE,
         FOREIGN KEY (id_asignado) REFERENCES usuarios(id_usuario) ON DELETE SET NULL,
         INDEX idx_grupo (id_grupo),
         INDEX idx_asignado (id_asignado),
-        INDEX idx_estado (estado)
+        INDEX idx_estado (estado),
+        INDEX idx_semana (semana_inicio)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
     `);
     console.log('Tabla tareas verificada');
+
+    // Agregar columna semana_inicio a tareas para bases existentes
+    try {
+      await pool.query('ALTER TABLE tareas ADD COLUMN semana_inicio DATE');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando semana_inicio en tareas:', e.message);
+      }
+    }
+    try {
+      await pool.query('ALTER TABLE tareas ADD INDEX idx_semana (semana_inicio)');
+    } catch (e) {
+      if (!e.message.includes('Duplicate key name')) {
+        console.error('Error agregando indice idx_semana en tareas:', e.message);
+      }
+    }
 
     // Tabla de publicaciones del Board (Mates Board)
     await pool.query(`

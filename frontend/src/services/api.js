@@ -385,12 +385,38 @@ export const createBoardPost = async (postData) => {
     });
 };
 
+// Editar publicacion en el board
+export const editBoardPost = async (postId, postData) => {
+    return await apiRequest(`${API_URL}/board/${postId}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify(postData),
+    });
+};
+
 // Responder a una publicacion
 export const replyToBoardPost = async (postId, contenido) => {
     return await apiRequest(`${API_URL}/board/${postId}/respuestas`, {
         method: 'POST',
         headers: authHeaders(),
         body: JSON.stringify({ contenido }),
+    });
+};
+
+// Editar una respuesta
+export const editBoardReply = async (postId, replyId, contenido) => {
+    return await apiRequest(`${API_URL}/board/${postId}/respuestas/${replyId}`, {
+        method: 'PUT',
+        headers: authHeaders(),
+        body: JSON.stringify({ contenido }),
+    });
+};
+
+// Eliminar una respuesta
+export const deleteBoardReply = async (postId, replyId) => {
+    return await apiRequest(`${API_URL}/board/${postId}/respuestas/${replyId}`, {
+        method: 'DELETE',
+        headers: authHeaders(),
     });
 };
 

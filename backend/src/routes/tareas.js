@@ -4,10 +4,22 @@ const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken } = require('../middleware/authMiddleware');
 
-// Obtener todas las tareas de un grupo
+// Utility: get the Sunday that starts the week containing the given date
+function getSundayOfWeek(date) {
+    const d = new Date(date);
+    const day = d.getDay(); // 0=Sun, 1=Mon, ... 6=Sat
+    d.setDate(d.getDate() - day);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const dom = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${dom}`; // YYYY-MM-DD local time
+}
+
+// Obtener todas las tareas de un grupo (filtradas por semana opcionalmente)
 router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
     try {
         const { idGrupo } = req.params;
+        const { semana } = req.query; // optional: YYYY-MM-DD (Sunday start)
 
         // Verificar que el usuario es miembro del grupo
         const [esMiembro] = await pool.query(
@@ -22,15 +34,42 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
             });
         }
 
-        // Obtener las tareas con los datos del usuario asignado
-        const [tareas] = await pool.query(
-            `SELECT t.*, u.nombre as asignado_nombre, u.apellido as asignado_apellido
-       FROM tareas t
-       LEFT JOIN usuarios u ON t.id_asignado = u.id_usuario
-       WHERE t.id_grupo = ?
-       ORDER BY t.fecha_vencimiento ASC, t.fecha_creacion DESC`,
-            [idGrupo]
+        // Carry-over: move uncompleted tasks from past weeks to the current week
+        const currentWeekStart = getSundayOfWeek(new Date());
+        await pool.query(
+            `UPDATE tareas
+             SET semana_inicio = ?
+             WHERE id_grupo = ?
+               AND estado != 'completada'
+               AND semana_inicio IS NOT NULL
+               AND semana_inicio < ?`,
+            [currentWeekStart, idGrupo, currentWeekStart]
         );
+
+        // Also assign semana_inicio to any tasks that don't have one yet
+        await pool.query(
+            `UPDATE tareas
+             SET semana_inicio = ?
+             WHERE id_grupo = ?
+               AND semana_inicio IS NULL`,
+            [currentWeekStart, idGrupo]
+        );
+
+        // Build query with optional week filter
+        let query = `SELECT t.*, u.nombre as asignado_nombre, u.apellido as asignado_apellido, DATE_FORMAT(t.semana_inicio, '%Y-%m-%d') as semana_inicio_str
+           FROM tareas t
+           LEFT JOIN usuarios u ON t.id_asignado = u.id_usuario
+           WHERE t.id_grupo = ?`;
+        const params = [idGrupo];
+
+        if (semana) {
+            query += ' AND t.semana_inicio = ?';
+            params.push(semana);
+        }
+
+        query += ' ORDER BY t.fecha_vencimiento ASC, t.fecha_creacion DESC';
+
+        const [tareas] = await pool.query(query, params);
 
         // Formatear las tareas para el frontend
         const tareasFormateadas = tareas.map(t => ({
@@ -44,6 +83,7 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
                 : 'Sin asignar',
             status: t.estado,
             dueDate: t.fecha_vencimiento,
+            weekStart: t.semana_inicio_str || null,
             createdAt: t.fecha_creacion,
         }));
 
@@ -103,11 +143,12 @@ router.post('/', verificarToken, async (req, res) => {
         }
 
         const id_tarea = uuidv4();
+        const semana_inicio = getSundayOfWeek(new Date());
 
         await pool.query(
-            `INSERT INTO tareas (id_tarea, id_grupo, titulo, descripcion, id_asignado, fecha_vencimiento)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-            [id_tarea, id_grupo, titulo, descripcion || null, id_asignado || null, fecha_vencimiento || null]
+            `INSERT INTO tareas (id_tarea, id_grupo, titulo, descripcion, id_asignado, fecha_vencimiento, semana_inicio)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            [id_tarea, id_grupo, titulo, descripcion || null, id_asignado || null, fecha_vencimiento || null, semana_inicio]
         );
 
         res.status(201).json({
@@ -116,6 +157,7 @@ router.post('/', verificarToken, async (req, res) => {
             tarea: {
                 id: id_tarea,
                 titulo,
+                weekStart: semana_inicio,
             },
         });
 
