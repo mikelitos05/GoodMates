@@ -55,7 +55,7 @@ Aplicacion web fullstack para conectar roommates y gestionar convivencias compar
 ## Arquitectura del Proyecto
 
 ```
-Cliente (React :3000)  <-->  Servidor (Express :5000)  <-->  MySQL (:3306)
+Cliente (React :3000)  <-->  Servidor (Express :5001)  <-->  MySQL (:3306)
         |                           |
         +--- Socket.io (WS) -------+
 ```
@@ -100,7 +100,7 @@ cp backend/.env.example backend/.env
 Editar `backend/.env` con tus credenciales:
 
 ```env
-PORT=5000
+PORT=5001
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=root
@@ -125,7 +125,7 @@ npm install
 ### 5. Iniciar la aplicacion
 
 ```bash
-# Terminal 1 - Backend (puerto 5000)
+# Terminal 1 - Backend (puerto 5001)
 cd backend
 npm run dev
 
@@ -530,7 +530,7 @@ La instancia de `io` se comparte con las rutas via `app.set('io', io)`.
 - **Destino**: `backend/uploads/propiedades/`
 - **Limite**: 5 MB por archivo
 - **Formatos**: JPEG, PNG, WebP, GIF
-- **Servido en**: `http://localhost:5000/uploads/propiedades/{nombre_archivo}`
+- **Servido en**: `http://localhost:5001/uploads/propiedades/{nombre_archivo}`
 - **Nombre**: UUID + extension original para evitar colisiones
 
 ---
@@ -640,7 +640,7 @@ La proteccion de rutas se realiza con el componente `ProtectedRoute`, que verifi
 Cliente API centralizado con 50+ funciones que encapsulan todas las llamadas al backend.
 
 **Configuracion**:
-- URL base dinamica: `http://{window.location.hostname}:5000/api`
+- URL base dinamica: `http://{window.location.hostname}:5001/api`
 - Token JWT inyectado automaticamente en el header `Authorization`
 - Manejo de errores unificado
 

@@ -103,9 +103,9 @@ function MatesBoard() {
     };
 
     const typeIcons = {
-        announcement: 'Aviso',
-        discussion: 'Chat',
-        event: 'Evento',
+        announcement: '',
+        discussion: '',
+        event: '',
     };
 
     const typeLabels = {
