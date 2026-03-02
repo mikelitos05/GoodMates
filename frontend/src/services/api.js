@@ -6,7 +6,7 @@ const API_URL = `${BACKEND_URL}/api`;
 // Helper: build full URL for images stored on the backend
 export const getImageUrl = (path) => {
     if (!path) return null;
-    if (path.startsWith('http')) return path;
+    if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) return path;
     return `${BACKEND_URL}${path}`;  // e.g. /uploads/propiedades/123.jpg → http://192.168.1.X:5000/uploads/propiedades/123.jpg
 };
 
@@ -77,13 +77,61 @@ export const loginUser = async (nombre_usuario, password) => {
     return result;
 };
 
+const isFile = (value) => typeof File !== 'undefined' && value instanceof File;
+
+const appendFormDataValue = (formData, key, value) => {
+    if (value === undefined || value === null) return;
+    if (Array.isArray(value)) {
+        formData.append(key, JSON.stringify(value));
+        return;
+    }
+    if (typeof value === 'boolean') {
+        formData.append(key, value ? 'true' : 'false');
+        return;
+    }
+    formData.append(key, value);
+};
+
 // Iniciar sesion con Google Identity Services
-export const googleLoginUser = async (idToken, role = 'tenant') => {
-    const result = await apiRequest(`${API_URL}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ idToken, role }),
-    });
+export const googleLoginUser = async (payloadOrIdToken, role = 'tenant') => {
+    const payload = typeof payloadOrIdToken === 'string'
+        ? { idToken: payloadOrIdToken, role }
+        : (payloadOrIdToken || {});
+
+    const hasProfileImage = isFile(payload.foto_perfil);
+    let result;
+
+    if (hasProfileImage) {
+        const formData = new FormData();
+        appendFormDataValue(formData, 'idToken', payload.idToken);
+        appendFormDataValue(formData, 'role', payload.role || role);
+        appendFormDataValue(formData, 'nombre_usuario', payload.nombre_usuario);
+        appendFormDataValue(formData, 'nombre', payload.nombre);
+        appendFormDataValue(formData, 'apellido', payload.apellido);
+        formData.append('foto_perfil', payload.foto_perfil);
+
+        try {
+            const response = await fetch(`${API_URL}/auth/google`, {
+                method: 'POST',
+                body: formData,
+            });
+            result = await handleResponse(response);
+        } catch (error) {
+            result = { success: false, error: 'Error de conexion con el servidor' };
+        }
+    } else {
+        result = await apiRequest(`${API_URL}/auth/google`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                idToken: payload.idToken,
+                role: payload.role || role,
+                nombre_usuario: payload.nombre_usuario,
+                nombre: payload.nombre,
+                apellido: payload.apellido,
+            }),
+        });
+    }
 
     if (result.success && result.token) {
         localStorage.setItem('token', result.token);
@@ -116,13 +164,40 @@ export const getMyProfile = async () => {
     });
 };
 
+export const getUniversities = async () => {
+    return await apiRequest(`${API_URL}/perfiles/universidades`, {
+        headers: authHeaders(),
+    });
+};
+
 // Actualizar el perfil del tenant
 export const updateProfile = async (profileData) => {
-    return await apiRequest(`${API_URL}/perfiles/me`, {
-        method: 'PUT',
-        headers: authHeaders(),
-        body: JSON.stringify(profileData),
-    });
+    const hasProfileImage = isFile(profileData?.foto_perfil);
+    if (!hasProfileImage) {
+        return await apiRequest(`${API_URL}/perfiles/me`, {
+            method: 'PUT',
+            headers: authHeaders(),
+            body: JSON.stringify(profileData),
+        });
+    }
+
+    try {
+        const formData = new FormData();
+        Object.keys(profileData || {}).forEach((key) => {
+            if (key === 'foto_perfil') return;
+            appendFormDataValue(formData, key, profileData[key]);
+        });
+        formData.append('foto_perfil', profileData.foto_perfil);
+
+        const response = await fetch(`${API_URL}/perfiles/me`, {
+            method: 'PUT',
+            headers: { 'Authorization': `Bearer ${getToken()}` },
+            body: formData,
+        });
+        return await handleResponse(response);
+    } catch (error) {
+        return { success: false, error: 'Error de conexion con el servidor' };
+    }
 };
 
 // Obtener el perfil de otro tenant
@@ -649,3 +724,4 @@ export const sendMatchChatMessage = async (idMatch, contenido) => {
         body: JSON.stringify({ contenido }),
     });
 };
+

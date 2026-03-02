@@ -246,6 +246,17 @@
     pointer-events: none;
 }
 
+.google-onboarding-form {
+    margin-top: var(--space-4);
+    padding: var(--space-4);
+    border: 1px solid var(--neutral-200);
+    border-radius: var(--radius-lg);
+    background: var(--neutral-50);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+}
+
 .auth-note {
     margin: 0;
     font-size: var(--font-xs);

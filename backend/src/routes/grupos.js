@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 const {
     construirErrorRegla,
     getTenantConvivenciaContext,
@@ -51,7 +52,7 @@ router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res)
 
         // Obtener los miembros del grupo con sus datos basicos
         const [miembros] = await pool.query(
-            `SELECT u.id_usuario, u.nombre, u.apellido, u.email, mg.rol_en_grupo, mg.fecha_union,
+            `SELECT u.id_usuario, u.nombre, u.apellido, u.email, u.foto_perfil, mg.rol_en_grupo, mg.fecha_union,
                     cr.calificacion_promedio, cr.total_calificaciones,
                     mc.puntuacion AS mi_calificacion
              FROM miembros_grupo mg
@@ -114,7 +115,9 @@ router.get('/mi-grupo', verificarToken, verificarRol('tenant'), async (req, res)
                 miembros: miembros.map(m => ({
                     id: m.id_usuario,
                     nombre: `${m.nombre} ${m.apellido}`,
-                    avatar: (m.nombre[0] + m.apellido[0]).toUpperCase(),
+                    avatar: construirAvatar(m.nombre, m.apellido),
+                    foto_perfil: normalizarFotoPerfil(m.foto_perfil),
+                    profileImage: normalizarFotoPerfil(m.foto_perfil),
                     rol: m.rol_en_grupo,
                     fechaUnion: m.fecha_union,
                     calificacionPromedio: m.calificacion_promedio !== null

@@ -7,6 +7,7 @@ import {
     getConvivenciaEstado,
     getMyInquiries,
 } from '../../services/api';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './PropertyDetail.css';
 
 function PropertyDetail() {
@@ -145,6 +146,7 @@ function PropertyDetail() {
     const landlordNombre = property.landlord_nombre || '';
     const landlordApellido = property.landlord_apellido || '';
     const landlordEmail = property.landlord_email || '';
+    const landlordPhoto = property.landlord_foto_perfil || property.landlord_profileImage || null;
     const inquilinosCompatibles = Array.isArray(property.inquilinos_compatibles) ? property.inquilinos_compatibles : [];
     const inquilinosActivos = Number.isFinite(Number(property.inquilinos_activos))
         ? Number(property.inquilinos_activos)
@@ -317,6 +319,7 @@ function PropertyDetail() {
                                             {inquilinosCompatibles.map((tenant) => {
                                                 const fullName = `${tenant.nombre || ''} ${tenant.apellido || ''}`.trim() || 'Inquilino';
                                                 const avatar = tenant.avatar || fullName.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2) || '??';
+                                                const tenantPhoto = tenant.profileImage || tenant.foto_perfil || null;
                                                 const compat = tenant.compatibilidad;
                                                 const ratingRaw = tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
                                                     ? Number(tenant.calificacion_promedio)
@@ -326,7 +329,12 @@ function PropertyDetail() {
 
                                                 return (
                                                     <div key={tenant.id_usuario} className="tenant-compat-item">
-                                                        <div className="avatar avatar-md">{avatar}</div>
+                                                        <UserAvatar
+                                                            className="avatar-md"
+                                                            name={fullName}
+                                                            initials={avatar}
+                                                            image={tenantPhoto}
+                                                        />
                                                         <div className="tenant-compat-meta">
                                                             <p className="tenant-compat-name">{fullName}</p>
                                                             <p className="tenant-compat-subtitle">
@@ -420,9 +428,12 @@ function PropertyDetail() {
                                 <div className="sidebar-card">
                                     <h3 className="sidebar-card-title">Arrendador</h3>
                                     <div className="landlord-info">
-                                        <div className="avatar avatar-lg">
-                                            {(landlordNombre[0] || '') + (landlordApellido[0] || '')}
-                                        </div>
+                                        <UserAvatar
+                                            className="avatar-lg"
+                                            name={`${landlordNombre} ${landlordApellido}`.trim()}
+                                            initials={`${(landlordNombre[0] || '') + (landlordApellido[0] || '')}`}
+                                            image={landlordPhoto}
+                                        />
                                         <div>
                                             <p className="landlord-name">{landlordNombre} {landlordApellido}</p>
                                             {landlordEmail && <p className="landlord-email">{landlordEmail}</p>}
@@ -437,7 +448,12 @@ function PropertyDetail() {
                                     <div className="roommates-list">
                                         {roommates.map((r) => (
                                             <div key={r.id_usuario} className="roommate-item">
-                                                <div className="avatar avatar-sm">{r.avatar}</div>
+                                                <UserAvatar
+                                                    className="avatar-sm"
+                                                    name={r.nombre}
+                                                    initials={r.avatar}
+                                                    image={r.profileImage || r.foto_perfil}
+                                                />
                                                 <div className="roommate-info">
                                                     <span className="roommate-name">{r.nombre}</span>
                                                 </div>

@@ -25,16 +25,23 @@ export function AuthProvider({ children }) {
             setUser(result.user);
             return { success: true, user: result.user };
         }
-        return { success: false, error: result.error };
+        return { success: false, error: result.error, code: result.code };
     };
 
-    const loginWithGoogle = async (idToken, role = 'tenant') => {
-        const result = await googleLoginUser(idToken, role);
+    const loginWithGoogle = async (googlePayloadOrToken, role = 'tenant') => {
+        const result = await googleLoginUser(googlePayloadOrToken, role);
         if (result.success) {
             setUser(result.user);
             return { success: true, user: result.user };
         }
-        return { success: false, error: result.error };
+        return {
+            success: false,
+            error: result.error,
+            code: result.code,
+            requiresPhoto: result.requiresPhoto,
+            role: result.role,
+            email: result.email,
+        };
     };
 
     const register = async (nombre_usuario, nombre, apellido, email, password, role) => {
@@ -43,7 +50,7 @@ export function AuthProvider({ children }) {
             setUser(result.user);
             return { success: true, user: result.user };
         }
-        return { success: false, error: result.error };
+        return { success: false, error: result.error, code: result.code };
     };
 
     const logout = () => {
@@ -55,11 +62,16 @@ export function AuthProvider({ children }) {
     const updateProfile = async (profileData) => {
         const result = await apiUpdateProfile(profileData);
         if (result.success) {
+            const safeProfileData = { ...(profileData || {}) };
+            delete safeProfileData.foto_perfil;
             // Actualizar el estado local del usuario con los datos del perfil
             setUser((prev) => ({
                 ...prev,
-                profile: { ...prev?.profile, ...profileData },
+                profile: { ...prev?.profile, ...safeProfileData },
                 perfil_completo: result.perfil_completo !== undefined ? result.perfil_completo : prev?.perfil_completo,
+                avatar: result.user?.avatar || prev?.avatar,
+                profileImage: result.user?.profileImage || prev?.profileImage || null,
+                foto_perfil: result.user?.foto_perfil || prev?.foto_perfil || null,
             }));
         }
         return result;
@@ -72,6 +84,9 @@ export function AuthProvider({ children }) {
             setUser((prev) => ({
                 ...prev,
                 profile: result.perfil,
+                avatar: result.perfil.avatar || prev?.avatar,
+                profileImage: result.perfil.profileImage || prev?.profileImage || null,
+                foto_perfil: result.perfil.foto_perfil || prev?.foto_perfil || null,
             }));
         }
         return result;

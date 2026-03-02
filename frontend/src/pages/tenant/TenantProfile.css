@@ -82,6 +82,33 @@
     border-bottom: 1px solid var(--neutral-100);
 }
 
+.profile-photo-editor {
+    margin-bottom: var(--space-5);
+}
+
+.profile-photo-editor-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+}
+
+.profile-photo-editor-row .form-input {
+    max-width: 320px;
+}
+
+.form-help-text {
+    margin-top: var(--space-2);
+    font-size: var(--font-xs);
+    color: var(--text-muted);
+}
+
+.university-custom-row {
+    margin-top: var(--space-3);
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+}
+
 .profile-form-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -438,6 +465,11 @@
 
     .profile-form-grid {
         grid-template-columns: 1fr;
+    }
+
+    .university-custom-row {
+        flex-direction: column;
+        align-items: stretch;
     }
 
     .category-label {

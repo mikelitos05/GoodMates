@@ -7,6 +7,7 @@ const fs = require('fs');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol, cargarUsuarioOpcional } = require('../middleware/authMiddleware');
 const { calcularCompatibilidadSiPosible } = require('../services/compatibilityService');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 const {
     construirErrorRegla,
     contarInquilinosActivosEnPropiedad,
@@ -66,12 +67,6 @@ function parsearDecimal(valor) {
     return Number.isNaN(numero) ? null : numero;
 }
 
-function construirAvatar(nombre, apellido) {
-    const inicialNombre = (nombre || '?').charAt(0).toUpperCase();
-    const inicialApellido = (apellido || '?').charAt(0).toUpperCase();
-    return `${inicialNombre}${inicialApellido}`;
-}
-
 async function obtenerPerfilTenant(idUsuario) {
     if (!idUsuario) return null;
 
@@ -89,7 +84,7 @@ async function obtenerTenantsActivosPorPropiedades(idsPropiedades = []) {
     }
 
     const [rows] = await pool.query(
-        `SELECT g.id_propiedad, u.id_usuario, u.nombre, u.apellido, p.*,
+        `SELECT g.id_propiedad, u.id_usuario, u.nombre, u.apellido, u.foto_perfil, p.*,
                 cr.calificacion_promedio, cr.total_calificaciones
          FROM grupos_roommates g
          JOIN miembros_grupo mg ON mg.id_grupo = g.id_grupo
@@ -162,6 +157,8 @@ function enriquecerPropiedadConCompatibilidad({ propiedad, tenantsActivos = [], 
                 nombre: tenant.nombre,
                 apellido: tenant.apellido,
                 avatar: construirAvatar(tenant.nombre, tenant.apellido),
+                foto_perfil: normalizarFotoPerfil(tenant.foto_perfil),
+                profileImage: normalizarFotoPerfil(tenant.foto_perfil),
                 compatibilidad,
                 calificacion_promedio: tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
                     ? Number(tenant.calificacion_promedio)
@@ -304,7 +301,7 @@ router.get('/:id/inquilinos', verificarToken, verificarRol('landlord'), async (r
         }
 
         const [inquilinos] = await pool.query(
-            `SELECT mg.id_usuario, u.nombre, u.apellido, u.email, mg.rol_en_grupo, mg.fecha_union,
+            `SELECT mg.id_usuario, u.nombre, u.apellido, u.email, u.foto_perfil, mg.rol_en_grupo, mg.fecha_union,
                     s.id_solicitud AS id_solicitud_chat,
                     cr.calificacion_promedio, cr.total_calificaciones
              FROM grupos_roommates g
@@ -328,7 +325,12 @@ router.get('/:id/inquilinos', verificarToken, verificarRol('landlord'), async (r
 
         return res.json({
             success: true,
-            inquilinos,
+            inquilinos: inquilinos.map((inquilino) => ({
+                ...inquilino,
+                avatar: construirAvatar(inquilino.nombre, inquilino.apellido),
+                foto_perfil: normalizarFotoPerfil(inquilino.foto_perfil),
+                profileImage: normalizarFotoPerfil(inquilino.foto_perfil),
+            })),
         });
     } catch (error) {
         console.error('Error obteniendo inquilinos de la propiedad:', error);
@@ -442,7 +444,8 @@ router.get('/:id', cargarUsuarioOpcional, async (req, res) => {
         const { id } = req.params;
 
         const [rows] = await pool.query(
-            `SELECT p.*, u.nombre as landlord_nombre, u.apellido as landlord_apellido, u.email as landlord_email
+            `SELECT p.*, u.id_usuario as landlord_id, u.nombre as landlord_nombre, u.apellido as landlord_apellido,
+                    u.email as landlord_email, u.foto_perfil as landlord_foto_perfil
        FROM propiedades p
        JOIN usuarios u ON p.id_landlord = u.id_usuario
        WHERE p.id_propiedad = ?`,
@@ -773,6 +776,10 @@ function parsearPropiedad(prop) {
         reglas: parseJsonField(prop.reglas),
         imagenes: parseJsonField(prop.imagenes),
         lugares_cercanos: parseJsonField(prop.lugares_cercanos),
+        landlord_avatar: prop.landlord_nombre
+            ? construirAvatar(prop.landlord_nombre, prop.landlord_apellido)
+            : null,
+        landlord_foto_perfil: normalizarFotoPerfil(prop.landlord_foto_perfil),
     };
 }
 

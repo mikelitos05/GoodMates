@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getReceivedInquiries, acceptInquiry, rejectInquiry, confirmInquiry, declineInquiry, getImageUrl } from '../../services/api';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './InquiryManager.css';
 
 function InquiryManager() {
@@ -135,9 +136,12 @@ function InquiryManager() {
                                         </div>
                                         <p className="inquiry-card-location">{sol.ciudad}</p>
                                         <div className="inquiry-card-tenant">
-                                            <div className="avatar avatar-sm">
-                                                {(sol.tenant_nombre?.[0] || '') + (sol.tenant_apellido?.[0] || '')}
-                                            </div>
+                                            <UserAvatar
+                                                className="avatar-sm"
+                                                name={`${sol.tenant_nombre || ''} ${sol.tenant_apellido || ''}`.trim()}
+                                                initials={`${(sol.tenant_nombre?.[0] || '') + (sol.tenant_apellido?.[0] || '')}`}
+                                                image={sol.tenant_foto_perfil}
+                                            />
                                             <div>
                                                 <span className="inquiry-tenant-name">{sol.tenant_nombre} {sol.tenant_apellido}</span>
                                                 <span className="inquiry-tenant-email">{sol.tenant_email}</span>

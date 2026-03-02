@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getMyGroup, getGroupTasks, createTask, completeTask, deleteTask as deleteTaskApi } from '../../services/api';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './TaskManager.css';
 
 // Build a string for the week span "28 Feb - 6 Mar"
@@ -295,6 +296,8 @@ function TaskManager() {
                         const dueDate = task.fecha_vencimiento || task.dueDate || '';
                         const assigneeName = task.asignado_nombre || task.assigneeName || '';
                         const assigneeApellido = task.asignado_apellido || '';
+                        const assigneePhoto = task.assigneePhoto || task.profileImage || task.foto_perfil || null;
+                        const assigneeAvatar = task.assigneeAvatar || null;
                         const isCompleted = status === 'completada' || status === 'completed';
 
                         let initials = '??';
@@ -323,7 +326,12 @@ function TaskManager() {
                                     <div className="task-meta">
                                         {assigneeName && assigneeName !== 'Sin asignar' && (
                                             <span className="task-assignee">
-                                                <span className="avatar avatar-sm">{initials}</span>
+                                                <UserAvatar
+                                                    className="avatar-sm"
+                                                    name={assigneeName}
+                                                    initials={assigneeAvatar || initials}
+                                                    image={assigneePhoto}
+                                                />
                                                 {assigneeName.split(' ')[0]}
                                             </span>
                                         )}

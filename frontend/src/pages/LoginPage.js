@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { GOOGLE_CLIENT_ID } from '../config/google';
@@ -13,6 +13,16 @@ function LoginPage() {
     const [googleLoading, setGoogleLoading] = useState(false);
     const [googleRole, setGoogleRole] = useState('tenant');
     const [googleReady, setGoogleReady] = useState(false);
+    const [googlePending, setGooglePending] = useState(null);
+    const [googleNeedsProfile, setGoogleNeedsProfile] = useState(false);
+    const [googleRequiresPhoto, setGoogleRequiresPhoto] = useState(false);
+    const [googleEmailHint, setGoogleEmailHint] = useState('');
+    const [googleProfileData, setGoogleProfileData] = useState({
+        nombre: '',
+        apellido: '',
+        nombre_usuario: '',
+        foto_perfil: null,
+    });
     const googleButtonRef = useRef(null);
     const googleRoleRef = useRef('tenant');
     const { login, loginWithGoogle } = useAuth();
@@ -21,6 +31,14 @@ function LoginPage() {
     useEffect(() => {
         googleRoleRef.current = googleRole;
     }, [googleRole]);
+
+    const navigateAfterAuth = useCallback((authUser) => {
+        if (authUser.role === 'tenant' && !authUser.perfil_completo) {
+            navigate('/tenant/profile');
+            return;
+        }
+        navigate(`/${authUser.role}/dashboard`);
+    }, [navigate]);
 
     useEffect(() => {
         let isMounted = true;
@@ -47,13 +65,28 @@ function LoginPage() {
                         setGoogleLoading(true);
 
                         try {
-                            const result = await loginWithGoogle(response.credential, googleRoleRef.current);
+                            const payloadBase = {
+                                idToken: response.credential,
+                                role: googleRoleRef.current,
+                            };
+
+                            const result = await loginWithGoogle(payloadBase);
                             if (result.success) {
-                                if (result.user.role === 'tenant' && !result.user.perfil_completo) {
-                                    navigate('/tenant/profile');
-                                    return;
-                                }
-                                navigate(`/${result.user.role}/dashboard`);
+                                setGoogleNeedsProfile(false);
+                                setGooglePending(null);
+                                navigateAfterAuth(result.user);
+                            } else if (result.code === 'GOOGLE_PROFILE_REQUIRED') {
+                                setGoogleNeedsProfile(true);
+                                setGoogleRequiresPhoto(Boolean(result.requiresPhoto));
+                                setGoogleEmailHint(result.email || '');
+                                setGooglePending(payloadBase);
+                                setGoogleProfileData({
+                                    nombre: '',
+                                    apellido: '',
+                                    nombre_usuario: '',
+                                    foto_perfil: null,
+                                });
+                                setError('Completa tu nombre y usuario para terminar el registro con Google.');
                             } else {
                                 setError(result.error || 'No fue posible iniciar sesion con Google.');
                             }
@@ -88,7 +121,7 @@ function LoginPage() {
         return () => {
             isMounted = false;
         };
-    }, [loginWithGoogle, navigate]);
+    }, [loginWithGoogle, navigateAfterAuth]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -106,6 +139,49 @@ function LoginPage() {
             setError('Error de conexion con el servidor');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleGoogleProfileSubmit = async (e) => {
+        e.preventDefault();
+        setError('');
+
+        if (!googlePending?.idToken) {
+            setError('La sesion de Google expiro. Intenta de nuevo.');
+            return;
+        }
+
+        if (!googleProfileData.nombre.trim() || !googleProfileData.nombre_usuario.trim()) {
+            setError('Nombre y usuario son obligatorios.');
+            return;
+        }
+
+        if (googleRequiresPhoto && !googleProfileData.foto_perfil) {
+            setError('La foto de perfil es obligatoria para cuentas de arrendador.');
+            return;
+        }
+
+        setGoogleLoading(true);
+        try {
+            const payload = {
+                ...googlePending,
+                nombre: googleProfileData.nombre.trim(),
+                apellido: googleProfileData.apellido.trim(),
+                nombre_usuario: googleProfileData.nombre_usuario.trim(),
+                foto_perfil: googleProfileData.foto_perfil,
+            };
+            const result = await loginWithGoogle(payload);
+            if (result.success) {
+                setGoogleNeedsProfile(false);
+                setGooglePending(null);
+                navigateAfterAuth(result.user);
+            } else {
+                setError(result.error || 'No fue posible completar el registro con Google.');
+            }
+        } catch (err) {
+            setError('Error de conexion con el servidor.');
+        } finally {
+            setGoogleLoading(false);
         }
     };
 
@@ -220,6 +296,65 @@ function LoginPage() {
 
                             {GOOGLE_CLIENT_ID && !googleReady && (
                                 <p className="auth-note">Cargando boton de Google...</p>
+                            )}
+
+                            {googleNeedsProfile && (
+                                <form onSubmit={handleGoogleProfileSubmit} className="google-onboarding-form">
+                                    <p className="auth-subtitle">
+                                        Completa tu perfil para finalizar tu acceso con Google.
+                                        {googleEmailHint ? ` (${googleEmailHint})` : ''}
+                                    </p>
+                                    <div className="form-group">
+                                        <label className="form-label">Nombre</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={googleProfileData.nombre}
+                                            onChange={(e) => setGoogleProfileData((prev) => ({ ...prev, nombre: e.target.value }))}
+                                            placeholder="Tu nombre real"
+                                            required
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Apellido (opcional)</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={googleProfileData.apellido}
+                                            onChange={(e) => setGoogleProfileData((prev) => ({ ...prev, apellido: e.target.value }))}
+                                            placeholder="Tu apellido"
+                                        />
+                                    </div>
+                                    <div className="form-group">
+                                        <label className="form-label">Nombre de usuario</label>
+                                        <input
+                                            type="text"
+                                            className="form-input"
+                                            value={googleProfileData.nombre_usuario}
+                                            onChange={(e) => setGoogleProfileData((prev) => ({ ...prev, nombre_usuario: e.target.value }))}
+                                            placeholder="usuario123"
+                                            required
+                                        />
+                                    </div>
+                                    {googleRequiresPhoto && (
+                                        <div className="form-group">
+                                            <label className="form-label">Foto de perfil</label>
+                                            <input
+                                                type="file"
+                                                className="form-input"
+                                                accept="image/*"
+                                                onChange={(e) => setGoogleProfileData((prev) => ({
+                                                    ...prev,
+                                                    foto_perfil: e.target.files?.[0] || null,
+                                                }))}
+                                                required
+                                            />
+                                        </div>
+                                    )}
+                                    <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%' }} disabled={googleLoading}>
+                                        {googleLoading ? 'Finalizando...' : 'Finalizar con Google'}
+                                    </button>
+                                </form>
                             )}
                         </div>
 

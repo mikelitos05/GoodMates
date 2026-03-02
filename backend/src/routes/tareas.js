@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken } = require('../middleware/authMiddleware');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 
 // Utility: get the Sunday that starts the week containing the given date
 function getSundayOfWeek(date) {
@@ -56,7 +57,7 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
         );
 
         // Build query with optional week filter
-        let query = `SELECT t.*, u.nombre as asignado_nombre, u.apellido as asignado_apellido, DATE_FORMAT(t.semana_inicio, '%Y-%m-%d') as semana_inicio_str
+        let query = `SELECT t.*, u.nombre as asignado_nombre, u.apellido as asignado_apellido, u.foto_perfil as asignado_foto_perfil, DATE_FORMAT(t.semana_inicio, '%Y-%m-%d') as semana_inicio_str
            FROM tareas t
            LEFT JOIN usuarios u ON t.id_asignado = u.id_usuario
            WHERE t.id_grupo = ?`;
@@ -81,6 +82,10 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
             assigneeName: t.asignado_nombre
                 ? `${t.asignado_nombre} ${t.asignado_apellido}`
                 : 'Sin asignar',
+            assigneeAvatar: t.asignado_nombre
+                ? construirAvatar(t.asignado_nombre, t.asignado_apellido)
+                : null,
+            assigneePhoto: normalizarFotoPerfil(t.asignado_foto_perfil),
             status: t.estado,
             dueDate: t.fecha_vencimiento,
             weekStart: t.semana_inicio_str || null,

@@ -3,7 +3,7 @@ const { pool } = require('../config/db');
 
 async function obtenerUsuarioActivoPorId(idUsuario) {
     const [rows] = await pool.query(
-        'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol, estado_cuenta FROM usuarios WHERE id_usuario = ?',
+        'SELECT id_usuario, nombre_usuario, nombre, apellido, email, rol, estado_cuenta, foto_perfil FROM usuarios WHERE id_usuario = ?',
         [idUsuario]
     );
 
@@ -19,6 +19,7 @@ async function obtenerUsuarioActivoPorId(idUsuario) {
         apellido: usuario.apellido,
         email: usuario.email,
         rol: usuario.rol,
+        foto_perfil: usuario.foto_perfil || null,
     };
 }
 

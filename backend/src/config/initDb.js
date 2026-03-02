@@ -32,6 +32,7 @@ const initDatabase = async () => {
         universidad VARCHAR(100),
         carrera VARCHAR(100),
         biografia TEXT,
+        foto_perfil VARCHAR(255) NULL,
         fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         estado_cuenta ENUM('activo', 'suspendido', 'baja') DEFAULT 'activo',
         rol ENUM('tenant', 'landlord', 'admin') NOT NULL DEFAULT 'tenant',
@@ -82,6 +83,13 @@ const initDatabase = async () => {
     } catch (e) {
       if (!e.message.includes('Duplicate column')) {
         console.error('Error agregando perfil_completo en usuarios:', e.message);
+      }
+    }
+    try {
+      await pool.query('ALTER TABLE usuarios ADD COLUMN foto_perfil VARCHAR(255) NULL');
+    } catch (e) {
+      if (!e.message.includes('Duplicate column')) {
+        console.error('Error agregando foto_perfil en usuarios:', e.message);
       }
     }
 

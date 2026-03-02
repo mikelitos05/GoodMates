@@ -5,6 +5,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
+const { uploadProfileImage } = require('../utils/profileImageUpload');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 
 const SALT_ROUNDS = 10;
 
@@ -37,16 +39,8 @@ function inferirPerfilCompletoDesdePerfil(perfilRow) {
     return Number.isFinite(edad) && edad > 0 && ciudad.length > 0 && horario.length > 0 && hobbies.length > 0;
 }
 
-function obtenerInicial(texto) {
-    const safe = typeof texto === 'string' ? texto.trim() : '';
-    return safe.length > 0 ? safe[0].toUpperCase() : '?';
-}
-
-function construirAvatar(nombre, apellido) {
-    return `${obtenerInicial(nombre)}${obtenerInicial(apellido)}`;
-}
-
 function construirPayloadUsuario(user, perfilCompleto) {
+    const fotoPerfil = normalizarFotoPerfil(user.foto_perfil);
     return {
         id: user.id_usuario,
         username: user.nombre_usuario,
@@ -55,6 +49,8 @@ function construirPayloadUsuario(user, perfilCompleto) {
         email: user.email,
         role: user.rol,
         avatar: construirAvatar(user.nombre, user.apellido),
+        profileImage: fotoPerfil,
+        foto_perfil: fotoPerfil,
         perfil_completo: perfilCompleto,
     };
 }
@@ -201,9 +197,16 @@ router.post('/register', async (req, res) => {
             });
         }
 
-        // Validar y asignar rol (solo tenant o landlord permitidos en registro)
+        // Validar y asignar rol (registro tradicional permitido solo para tenant)
         const validRoles = ['tenant', 'landlord'];
         const userRole = validRoles.includes(role) ? role : 'tenant';
+        if (userRole === 'landlord') {
+            return res.status(400).json({
+                success: false,
+                code: 'LANDLORD_GOOGLE_REQUIRED',
+                message: 'Los arrendadores deben registrarse con Google (cuenta Gmail) y foto de perfil',
+            });
+        }
 
         // Verificar que el nombre de usuario no este ya registrado
         const [existingUsername] = await pool.query(
@@ -268,6 +271,8 @@ router.post('/register', async (req, res) => {
                 email,
                 role: userRole,
                 avatar: construirAvatar(nombre, apellido),
+                profileImage: null,
+                foto_perfil: null,
                 perfil_completo: false,
             },
         });
@@ -353,9 +358,15 @@ router.post('/login', async (req, res) => {
 });
 
 // Iniciar sesion o registrar usuario usando Google Identity Services
-router.post('/google', async (req, res) => {
+router.post('/google', uploadProfileImage.single('foto_perfil'), async (req, res) => {
     try {
-        const { idToken, role } = req.body;
+        const {
+            idToken,
+            role,
+            nombre_usuario: nombreUsuarioInput,
+            nombre: nombreInput,
+            apellido: apellidoInput,
+        } = req.body;
 
         if (!idToken) {
             return res.status(400).json({
@@ -390,6 +401,9 @@ router.post('/google', async (req, res) => {
             });
         }
 
+        const validRoles = ['tenant', 'landlord'];
+        const requestedRole = validRoles.includes(role) ? role : 'tenant';
+
         const [existingRows] = await pool.query(
             'SELECT * FROM usuarios WHERE email = ? LIMIT 1',
             [email]
@@ -399,21 +413,58 @@ router.post('/google', async (req, res) => {
         let created = false;
 
         if (!user) {
-            const validRoles = ['tenant', 'landlord'];
-            const userRole = validRoles.includes(role) ? role : 'tenant';
+            if (requestedRole === 'landlord' && !email.endsWith('@gmail.com')) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'LANDLORD_GMAIL_REQUIRED',
+                    message: 'Para crear una cuenta de arrendador debes usar una cuenta Gmail',
+                });
+            }
 
-            const nombre = (payload.given_name || payload.name || 'Usuario').trim().slice(0, 100);
-            const apellido = (payload.family_name || 'Google').trim().slice(0, 100);
-            const baseUsername = normalizarNombreUsuarioBase(
-                payload.preferred_username || email.split('@')[0] || `${nombre}_${apellido}`
+            const nombre = typeof nombreInput === 'string' ? nombreInput.trim().slice(0, 100) : '';
+            const apellido = typeof apellidoInput === 'string' ? apellidoInput.trim().slice(0, 100) : '';
+            const nombreUsuario = typeof nombreUsuarioInput === 'string' ? nombreUsuarioInput.trim() : '';
+
+            const requiereFotoLandlord = requestedRole === 'landlord' && !req.file;
+            if (!nombre || !nombreUsuario || requiereFotoLandlord) {
+                return res.status(400).json({
+                    success: false,
+                    code: 'GOOGLE_PROFILE_REQUIRED',
+                    message: 'Para continuar, completa nombre, usuario y foto de perfil (arrendador)',
+                    requiresPhoto: requestedRole === 'landlord',
+                    role: requestedRole,
+                    email,
+                });
+            }
+
+            const usernameRegex = /^[a-zA-Z0-9_]{3,30}$/;
+            if (!usernameRegex.test(nombreUsuario)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'El nombre de usuario debe tener entre 3 y 30 caracteres y solo puede contener letras, numeros y guiones bajos',
+                });
+            }
+
+            const [existingUsername] = await pool.query(
+                'SELECT id_usuario FROM usuarios WHERE nombre_usuario = ? LIMIT 1',
+                [nombreUsuario]
             );
-            const nombreUsuario = await generarNombreUsuarioUnico(baseUsername);
+            if (existingUsername.length > 0) {
+                return res.status(409).json({
+                    success: false,
+                    message: 'El nombre de usuario ya esta en uso',
+                });
+            }
+
             const passwordHash = await bcrypt.hash(uuidv4(), SALT_ROUNDS);
             const idUsuario = uuidv4();
+            const fotoPerfil = req.file ? `/uploads/perfiles/${req.file.filename}` : null;
 
             await pool.query(
-                'INSERT INTO usuarios (id_usuario, nombre_usuario, nombre, apellido, email, contrasena_hash, rol) VALUES (?, ?, ?, ?, ?, ?, ?)',
-                [idUsuario, nombreUsuario, nombre || 'Usuario', apellido || 'Google', email, passwordHash, userRole]
+                `INSERT INTO usuarios
+                (id_usuario, nombre_usuario, nombre, apellido, email, contrasena_hash, rol, foto_perfil)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [idUsuario, nombreUsuario, nombre, apellido || '', email, passwordHash, requestedRole, fotoPerfil]
             );
 
             const [createdRows] = await pool.query(
@@ -477,7 +528,7 @@ router.get('/verify', async (req, res) => {
 
         // Buscar el usuario en la base de datos
         const [rows] = await pool.query(
-            `SELECT u.id_usuario, u.nombre_usuario, u.nombre, u.apellido, u.email, u.rol, u.perfil_completo,
+            `SELECT u.id_usuario, u.nombre_usuario, u.nombre, u.apellido, u.email, u.rol, u.perfil_completo, u.foto_perfil,
                     p.edad, p.ciudad, p.horario, p.hobbies
              FROM usuarios u
              LEFT JOIN perfiles p ON p.id_usuario = u.id_usuario

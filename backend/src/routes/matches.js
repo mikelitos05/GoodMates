@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
 const { calcularCompatibilidad, parseHobbies } = require('../services/compatibilityService');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 
 // ─── Obtener todos los tenants con compatibilidad calculada en tiempo real ───
 router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, res) => {
@@ -27,7 +28,7 @@ router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, r
 
         // Obtener todos los otros tenants activos con perfil completo
         const [otrosTenants] = await pool.query(
-            `SELECT p.*, u.id_usuario, u.nombre, u.apellido, u.carrera, u.universidad, u.biografia
+            `SELECT p.*, u.id_usuario, u.nombre, u.apellido, u.carrera, u.universidad, u.biografia, u.foto_perfil
                     , cr.calificacion_promedio, cr.total_calificaciones
              FROM perfiles p
              JOIN usuarios u ON p.id_usuario = u.id_usuario
@@ -104,7 +105,9 @@ router.get('/all-tenants', verificarToken, verificarRol('tenant'), async (req, r
                 id_usuario: otro.id_usuario,
                 nombre: otro.nombre,
                 apellido: otro.apellido,
-                avatar: (otro.nombre[0] + otro.apellido[0]).toUpperCase(),
+                avatar: construirAvatar(otro.nombre, otro.apellido),
+                foto_perfil: normalizarFotoPerfil(otro.foto_perfil),
+                profileImage: normalizarFotoPerfil(otro.foto_perfil),
                 universidad: otro.universidad,
                 carrera: otro.carrera,
                 ciudad: otro.ciudad,
@@ -151,7 +154,9 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
         const [matches] = await pool.query(
             `SELECT m.*,
               u1.nombre as nombre_1, u1.apellido as apellido_1,
+              u1.foto_perfil as foto_perfil_1,
               u2.nombre as nombre_2, u2.apellido as apellido_2,
+              u2.foto_perfil as foto_perfil_2,
               p1.ciudad as ciudad_1, p1.hobbies as hobbies_1, p1.edad as edad_1,
               p2.ciudad as ciudad_2, p2.hobbies as hobbies_2, p2.edad as edad_2,
               r1.calificacion_promedio AS calificacion_promedio_1,
@@ -204,8 +209,11 @@ router.get('/', verificarToken, verificarRol('tenant'), async (req, res) => {
                 matchedUserId: esUsuario1 ? m.id_usuario_2 : m.id_usuario_1,
                 matchedUserName: nombre,
                 matchedUserAvatar: esUsuario1
-                    ? (m.nombre_2[0] + m.apellido_2[0]).toUpperCase()
-                    : (m.nombre_1[0] + m.apellido_1[0]).toUpperCase(),
+                    ? construirAvatar(m.nombre_2, m.apellido_2)
+                    : construirAvatar(m.nombre_1, m.apellido_1),
+                matchedUserPhoto: esUsuario1
+                    ? normalizarFotoPerfil(m.foto_perfil_2)
+                    : normalizarFotoPerfil(m.foto_perfil_1),
                 matchedUserCity: ciudad,
                 matchedUserAge: edad,
                 compatibility: porcentaje,
@@ -428,7 +436,7 @@ router.post('/calcular', verificarToken, verificarRol('tenant'), async (req, res
         const perfil = miPerfil[0];
 
         const [otrosPerfiles] = await pool.query(
-            `SELECT p.*, u.nombre, u.apellido, u.id_usuario, u.carrera
+            `SELECT p.*, u.nombre, u.apellido, u.id_usuario, u.carrera, u.foto_perfil
        FROM perfiles p
        JOIN usuarios u ON p.id_usuario = u.id_usuario
        WHERE u.id_usuario != ? AND u.rol = 'tenant' AND u.estado_cuenta = 'activo'`,
@@ -461,7 +469,8 @@ router.post('/calcular', verificarToken, verificarRol('tenant'), async (req, res
                         id_match,
                         matchedUserId: otro.id_usuario,
                         matchedUserName: `${otro.nombre} ${otro.apellido}`,
-                        matchedUserAvatar: (otro.nombre[0] + otro.apellido[0]).toUpperCase(),
+                        matchedUserAvatar: construirAvatar(otro.nombre, otro.apellido),
+                        matchedUserPhoto: normalizarFotoPerfil(otro.foto_perfil),
                         compatibility: compatibilidad,
                         porcentaje_compatibilidad: compatibilidad,
                         status: 'pendiente',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { getMyGroup, getBoardPosts, createBoardPost, editBoardPost, deleteBoardPost, replyToBoardPost, editBoardReply, deleteBoardReply } from '../../services/api';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './MatesBoard.css';
 
 function MatesBoard() {
@@ -213,6 +214,7 @@ function MatesBoard() {
                         const postId = post.id_publicacion || post.id;
                         const authorName = post.authorName || '';
                         const authorInitials = post.authorAvatar || '??';
+                        const authorPhoto = post.authorPhoto || null;
                         const authorId = post.authorId;
                         const titulo = post.titulo || post.title || '';
                         const contenido = post.contenido || post.content || '';
@@ -226,7 +228,11 @@ function MatesBoard() {
                             <div key={postId} className="post-card animate-fade-in-up">
                                 <div className="post-header">
                                     <div className="post-author">
-                                        <div className="avatar">{authorInitials}</div>
+                                        <UserAvatar
+                                            name={authorName}
+                                            initials={authorInitials}
+                                            image={authorPhoto}
+                                        />
                                         <div>
                                             <p className="post-author-name">{authorName}</p>
                                             <p className="post-date">{formatDate(fecha)}</p>
@@ -312,17 +318,44 @@ function MatesBoard() {
                                             const replyId = reply.id_respuesta || reply.id;
                                             const replyName = reply.authorName || '';
                                             const replyInitials = reply.authorAvatar || '??';
+                                            const replyPhoto = reply.authorPhoto || null;
                                             const replyAuthorId = reply.authorId;
                                             const isMyReply = replyAuthorId === user?.id;
                                             const isEditingThisReply = editingReply === replyId;
 
                                             return (
                                                 <div key={replyId} className="reply-item">
-                                                    <div className="avatar avatar-sm">{replyInitials}</div>
+                                                    <UserAvatar
+                                                        className="avatar-sm"
+                                                        name={replyName}
+                                                        initials={replyInitials}
+                                                        image={replyPhoto}
+                                                    />
                                                     <div className="reply-content">
                                                         <div className="reply-header-info">
-                                                            <span className="reply-author">{replyName}</span>
-                                                            <span className="reply-date">{formatDate(reply.fecha_creacion || reply.createdAt)}</span>
+                                                            <div className="reply-author-meta">
+                                                                <span className="reply-author">{replyName}</span>
+                                                                <span className="reply-date">{formatDate(reply.fecha_creacion || reply.createdAt)}</span>
+                                                            </div>
+                                                            {isMyReply && !isEditingThisReply && (
+                                                                <div className="reply-actions-right">
+                                                                    <button
+                                                                        className="btn-text-xs edit-text"
+                                                                        onClick={() => {
+                                                                            setEditingReply(replyId);
+                                                                            setEditReplyText(reply.contenido || reply.content);
+                                                                        }}
+                                                                    >
+                                                                        Editar
+                                                                    </button>
+                                                                    <button
+                                                                        className="btn-text-xs delete-text"
+                                                                        onClick={() => handleDeleteReply(postId, replyId)}
+                                                                    >
+                                                                        Eliminar
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </div>
 
                                                         {isEditingThisReply ? (
@@ -341,26 +374,6 @@ function MatesBoard() {
                                                         ) : (
                                                             <p className="reply-text">{reply.contenido || reply.content}</p>
                                                         )}
-
-                                                        {isMyReply && !isEditingThisReply && (
-                                                            <div className="reply-actions mt-1">
-                                                                <button
-                                                                    className="btn-text-xs edit-text"
-                                                                    onClick={() => {
-                                                                        setEditingReply(replyId);
-                                                                        setEditReplyText(reply.contenido || reply.content);
-                                                                    }}
-                                                                >
-                                                                    Editar
-                                                                </button>
-                                                                <button
-                                                                    className="btn-text-xs delete-text mx-2"
-                                                                    onClick={() => handleDeleteReply(postId, replyId)}
-                                                                >
-                                                                    Eliminar
-                                                                </button>
-                                                            </div>
-                                                        )}
                                                     </div>
                                                 </div>
                                             );
@@ -370,9 +383,12 @@ function MatesBoard() {
 
 
                                 <div className="reply-input-wrapper">
-                                    <div className="avatar avatar-sm">
-                                        {((user?.nombre?.[0] || '') + (user?.apellido?.[0] || '')).toUpperCase() || '??'}
-                                    </div>
+                                    <UserAvatar
+                                        className="avatar-sm"
+                                        name={`${user?.nombre || ''} ${user?.apellido || ''}`.trim() || user?.username}
+                                        initials={user?.avatar}
+                                        image={user?.profileImage || user?.foto_perfil}
+                                    />
                                     <input
                                         type="text"
                                         className="reply-input"

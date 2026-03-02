@@ -9,6 +9,7 @@ import {
     removePropertyTenant,
 } from '../../services/api';
 import RatingModal from '../../components/shared/RatingModal';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './LandlordTenants.css';
 
 function LandlordTenants() {
@@ -258,6 +259,7 @@ function LandlordTenants() {
                         tenants.map((tenant) => {
                             const fullName = `${tenant.nombre || ''} ${tenant.apellido || ''}`.trim();
                             const initials = `${tenant.nombre?.[0] || ''}${tenant.apellido?.[0] || ''}` || 'IN';
+                            const profileImage = tenant.profileImage || tenant.foto_perfil || null;
                             const ratingRaw = tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
                                 ? Number(tenant.calificacion_promedio)
                                 : null;
@@ -265,7 +267,12 @@ function LandlordTenants() {
                             return (
                                 <div key={tenant.id_usuario} className="landlord-tenant-card">
                                     <div className="landlord-tenant-main">
-                                        <div className="avatar avatar-lg">{initials.toUpperCase()}</div>
+                                        <UserAvatar
+                                            className="avatar-lg"
+                                            name={fullName}
+                                            initials={initials.toUpperCase()}
+                                            image={profileImage}
+                                        />
                                         <div>
                                             <h3 className="landlord-tenant-name">{fullName}</h3>
                                             <p className="landlord-tenant-email">{tenant.email}</p>

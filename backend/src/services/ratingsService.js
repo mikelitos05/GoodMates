@@ -1,4 +1,5 @@
 const { v4: uuidv4 } = require('uuid');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 
 const MOTIVO_LABELS = {
     salida_tenant: 'Salida voluntaria del inquilino',
@@ -40,6 +41,9 @@ function normalizarPendiente(row) {
         id_pendiente: row.id_pendiente,
         id_tenant: row.id_tenant,
         tenant_nombre: nombre || 'Inquilino',
+        tenant_avatar: construirAvatar(row.tenant_nombre, row.tenant_apellido),
+        tenant_foto_perfil: normalizarFotoPerfil(row.tenant_foto_perfil),
+        tenant_profileImage: normalizarFotoPerfil(row.tenant_foto_perfil),
         id_propiedad: row.id_propiedad,
         propiedad_titulo: row.propiedad_titulo || 'Propiedad',
         motivo: row.motivo,
@@ -55,6 +59,9 @@ function normalizarPendienteTenant(row) {
         id_pendiente: row.id_pendiente,
         id_landlord: row.id_landlord,
         landlord_nombre: nombre || 'Arrendador',
+        landlord_avatar: construirAvatar(row.landlord_nombre, row.landlord_apellido),
+        landlord_foto_perfil: normalizarFotoPerfil(row.landlord_foto_perfil),
+        landlord_profileImage: normalizarFotoPerfil(row.landlord_foto_perfil),
         id_propiedad: row.id_propiedad,
         propiedad_titulo: row.propiedad_titulo || 'Propiedad',
         motivo: row.motivo,
@@ -66,7 +73,7 @@ function normalizarPendienteTenant(row) {
 async function obtenerPendientesCalificacionLandlord(executor, idLandlord) {
     const [rows] = await executor.query(
         `SELECT cp.id_pendiente, cp.id_tenant, cp.id_propiedad, cp.motivo, cp.fecha_evento,
-                u.nombre AS tenant_nombre, u.apellido AS tenant_apellido,
+                u.nombre AS tenant_nombre, u.apellido AS tenant_apellido, u.foto_perfil AS tenant_foto_perfil,
                 p.titulo AS propiedad_titulo
          FROM calificaciones_pendientes cp
          JOIN usuarios u ON u.id_usuario = cp.id_tenant
@@ -161,7 +168,7 @@ async function crearPendienteCalificacionLandlordPorEgreso(
 async function obtenerPendientesCalificacionTenant(executor, idTenant) {
     const [rows] = await executor.query(
         `SELECT cp.id_pendiente, cp.id_landlord, cp.id_propiedad, cp.motivo, cp.fecha_evento,
-                u.nombre AS landlord_nombre, u.apellido AS landlord_apellido,
+                u.nombre AS landlord_nombre, u.apellido AS landlord_apellido, u.foto_perfil AS landlord_foto_perfil,
                 p.titulo AS propiedad_titulo
          FROM calificaciones_pendientes_tenant cp
          JOIN usuarios u ON u.id_usuario = cp.id_landlord

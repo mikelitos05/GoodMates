@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
-import { getUserRatings, getMatches, getMyGroup, getTenantPendingLandlordRatings, rateRoommate, getGroupTasks, getBoardPosts } from '../../services/api';
+import {
+    getUserRatings,
+    getMatches,
+    getMyGroup,
+    getTenantPendingLandlordRatings,
+    rateRoommate,
+    getGroupTasks,
+    getBoardPosts,
+} from '../../services/api';
 import RatingModal from '../../components/shared/RatingModal';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './TenantDashboard.css';
 
 function TenantDashboard() {
@@ -14,7 +23,6 @@ function TenantDashboard() {
     const [ratingTargetPendingLandlord, setRatingTargetPendingLandlord] = useState(null);
     const [submittingPendingRating, setSubmittingPendingRating] = useState(false);
 
-    // New state for Mis Tareas and Mates Board
     const [myPendingTasks, setMyPendingTasks] = useState([]);
     const [latestPost, setLatestPost] = useState(null);
 
@@ -24,6 +32,7 @@ function TenantDashboard() {
         estado: m.estado || m.status || 'pendiente',
         porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
         usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
+        matchedUserPhoto: m.matchedUserPhoto || m.profileImage || m.foto_perfil || null,
     });
 
     useEffect(() => {
@@ -37,21 +46,18 @@ function TenantDashboard() {
             ]);
 
             if (ratingsRes.success) setReputacion(ratingsRes.reputacion);
-            if (matchesRes.success) {
-                setMatches((matchesRes.matches || []).map(normalizeMatch));
-            }
+            if (matchesRes.success) setMatches((matchesRes.matches || []).map(normalizeMatch));
+
             if (groupRes.success && groupRes.grupo) {
                 setGroup(groupRes.grupo);
-
-                // Fetch group data
                 const [tasksRes, boardRes] = await Promise.all([
                     getGroupTasks(groupRes.grupo.id),
-                    getBoardPosts(groupRes.grupo.id)
+                    getBoardPosts(groupRes.grupo.id),
                 ]);
 
                 if (tasksRes.success) {
                     const allTasks = tasksRes.tareas || [];
-                    const pendingForMe = allTasks.filter(t =>
+                    const pendingForMe = allTasks.filter((t) =>
                         t.assigneeId === user.id &&
                         t.status !== 'completada' &&
                         t.status !== 'completed'
@@ -61,9 +67,7 @@ function TenantDashboard() {
 
                 if (boardRes.success) {
                     const posts = boardRes.publicaciones || [];
-                    if (posts.length > 0) {
-                        setLatestPost(posts[0]);
-                    }
+                    setLatestPost(posts.length > 0 ? posts[0] : null);
                 }
             }
 
@@ -98,7 +102,7 @@ function TenantDashboard() {
         setSubmittingPendingRating(false);
 
         if (!result.success) {
-            alert(result.error || 'No se pudo registrar la calificación.');
+            alert(result.error || 'No se pudo registrar la calificacion.');
             return false;
         }
 
@@ -109,28 +113,38 @@ function TenantDashboard() {
 
     const typeLabels = {
         announcement: 'Aviso',
-        discussion: 'Discusión',
+        discussion: 'Discusion',
         event: 'Evento',
+    };
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('es-MX', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+        });
     };
 
     return (
         <div className="dashboard-page">
             <div className="container">
-
                 <div className="dashboard-welcome animate-fade-in-up">
                     <div className="welcome-text">
                         <h1 className="welcome-title">
-                            ¡Hola, <span className="text-gradient">{user.nombre || user.username || ''}</span>!
+                            Hola, <span className="text-gradient">{user.nombre || user.username || ''}</span>
                         </h1>
                         <p className="welcome-subtitle">
-                            Bienvenido a tu panel de GoodMates. Aquí tienes un resumen de tu actividad.
+                            Bienvenido a tu panel de GoodMates. Aqui tienes un resumen de tu actividad.
                         </p>
                     </div>
                     <Link to="/tenant/profile" className="btn btn-outline">
                         Editar Perfil
                     </Link>
                 </div>
-
 
                 <div className="dashboard-stats animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="stat-card">
@@ -151,26 +165,31 @@ function TenantDashboard() {
                     <Link to="/tenant/profile?section=reputation" className="stat-card stat-card-link">
                         <div className="stat-icon">Rep.</div>
                         <div className="stat-value">{reputacion?.promedio_general ?? 'N/A'}</div>
-                        <div className="stat-label">Reputación{reputacion?.total_calificaciones ? ` (${reputacion.total_calificaciones})` : ''}</div>
+                        <div className="stat-label">
+                            Reputacion{reputacion?.total_calificaciones ? ` (${reputacion.total_calificaciones})` : ''}
+                        </div>
                     </Link>
                 </div>
 
                 <div className="dashboard-grid animate-fade-in-up" style={{ animationDelay: '0.2s' }}>
-
                     <div className="dashboard-card">
                         <div className="dashboard-card-header">
                             <h2 className="dashboard-card-title">Matches Recientes</h2>
-                            <Link to="/tenant/matches" className="btn btn-ghost btn-sm">Ver todos →</Link>
+                            <Link to="/tenant/matches" className="btn btn-ghost btn-sm">Ver todos -></Link>
                         </div>
                         <div className="dashboard-card-body">
                             {pendingMatches.length > 0 ? (
                                 <div className="match-preview-list">
                                     {pendingMatches.slice(0, 3).map((match) => {
                                         const nombre = match.usuario_nombre || 'Usuario';
-                                        const avatar = nombre.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+                                        const initials = nombre.split(' ').map((n) => n[0]).join('').toUpperCase().slice(0, 2);
                                         return (
                                             <div key={match.id_match} className="match-preview-item">
-                                                <div className="avatar">{avatar}</div>
+                                                <UserAvatar
+                                                    name={nombre}
+                                                    initials={initials}
+                                                    image={match.matchedUserPhoto}
+                                                />
                                                 <div className="match-preview-info">
                                                     <p className="match-preview-name">{nombre}</p>
                                                     <p className="match-preview-detail">Compatibilidad</p>
@@ -191,11 +210,10 @@ function TenantDashboard() {
                         </div>
                     </div>
 
-
                     <div className="dashboard-card">
                         <div className="dashboard-card-header">
                             <h2 className="dashboard-card-title">Mis Tareas</h2>
-                            <Link to="/roommate/tasks" className="btn btn-ghost btn-sm">Ver todas →</Link>
+                            <Link to="/roommate/tasks" className="btn btn-ghost btn-sm">Ver todas -></Link>
                         </div>
                         <div className="dashboard-card-body">
                             {myPendingTasks.length > 0 ? (
@@ -219,30 +237,46 @@ function TenantDashboard() {
                     <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
                         <div className="dashboard-card-header">
                             <h2 className="dashboard-card-title">Mates Board</h2>
-                            <Link to="/roommate/board" className="btn btn-ghost btn-sm">Ver Mates Board →</Link>
+                            <Link to="/roommate/board" className="btn btn-ghost btn-sm">Ver Mates Board -></Link>
                         </div>
                         <div className="dashboard-card-body">
                             {latestPost ? (
                                 <div className="dashboard-board-preview">
                                     <div className="preview-post-header">
-                                        <div className="avatar avatar-sm">{latestPost.authorAvatar || '??'}</div>
-                                        <div>
-                                            <p className="match-preview-name">{latestPost.authorName}</p>
-                                            <p className="match-preview-detail">{typeLabels[latestPost.type] || latestPost.type}</p>
+                                        <div className="preview-post-author">
+                                            <UserAvatar
+                                                className="avatar-sm"
+                                                name={latestPost.authorName}
+                                                initials={latestPost.authorAvatar || '??'}
+                                                image={latestPost.authorPhoto}
+                                            />
+                                            <div className="preview-post-author-meta">
+                                                <p className="match-preview-name">{latestPost.authorName}</p>
+                                                <p className="match-preview-detail">{formatDate(latestPost.createdAt)}</p>
+                                            </div>
                                         </div>
+                                        <span className={`preview-post-badge ${latestPost.type}`}>
+                                            {typeLabels[latestPost.type] || latestPost.type}
+                                        </span>
                                     </div>
-                                    <h3 style={{ fontSize: '15px', marginTop: '8px', marginBottom: '4px' }}>{latestPost.title}</h3>
-                                    <p style={{ fontSize: '13px', color: 'var(--text-dark-secondary)', marginBottom: '12px' }}>{latestPost.content}</p>
+                                    <h3 className="preview-post-title">{latestPost.title}</h3>
+                                    <p className="preview-post-content">{latestPost.content}</p>
 
                                     {latestPost.replies && latestPost.replies.length > 0 && (
-                                        <div style={{ borderTop: '1px solid var(--neutral-100)', paddingTop: '8px', marginTop: '8px' }}>
-                                            <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px', fontWeight: 600 }}>Últimos comentarios ({latestPost.replies.length})</p>
-                                            {latestPost.replies.slice(-2).map(reply => (
-                                                <div key={reply.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', background: 'var(--neutral-50)', padding: '8px', borderRadius: '8px' }}>
-                                                    <div className="avatar avatar-sm" style={{ width: '24px', height: '24px', fontSize: '10px' }}>{reply.authorAvatar || '??'}</div>
-                                                    <div>
-                                                        <span style={{ fontSize: '12px', fontWeight: 600, display: 'block' }}>{reply.authorName}</span>
-                                                        <span style={{ fontSize: '13px', color: 'var(--text-dark-secondary)' }}>{reply.content}</span>
+                                        <div className="preview-post-replies">
+                                            <p className="preview-post-replies-title">Ultimos comentarios ({latestPost.replies.length})</p>
+                                            {latestPost.replies.slice(-2).map((reply) => (
+                                                <div key={reply.id} className="preview-post-reply-item">
+                                                    <UserAvatar
+                                                        className="avatar-sm"
+                                                        style={{ width: '24px', height: '24px', fontSize: '10px' }}
+                                                        name={reply.authorName}
+                                                        initials={reply.authorAvatar || '??'}
+                                                        image={reply.authorPhoto}
+                                                    />
+                                                    <div className="preview-post-reply-meta">
+                                                        <span className="preview-post-reply-author">{reply.authorName}</span>
+                                                        <span className="preview-post-reply-content">{reply.content}</span>
                                                     </div>
                                                 </div>
                                             ))}
@@ -250,7 +284,7 @@ function TenantDashboard() {
                                     )}
                                 </div>
                             ) : (
-                                <p className="empty-state">Consulta avisos y conversación de tu grupo.</p>
+                                <p className="empty-state">Consulta avisos y conversacion de tu grupo.</p>
                             )}
                         </div>
                     </div>
@@ -261,12 +295,16 @@ function TenantDashboard() {
                         </div>
                         <div className="dashboard-card-body">
                             {pendingLandlordRatings.length === 0 ? (
-                                <p className="empty-state">Sin pendientes de calificación.</p>
+                                <p className="empty-state">Sin pendientes de calificacion.</p>
                             ) : (
                                 <div className="match-preview-list">
                                     {pendingLandlordRatings.slice(0, 3).map((pending) => (
                                         <div key={pending.id_pendiente} className="match-preview-item">
-                                            <div className="avatar">{(pending.landlord_nombre || 'AR').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}</div>
+                                            <UserAvatar
+                                                name={pending.landlord_nombre || 'Arrendador'}
+                                                initials={(pending.landlord_nombre || 'AR').split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
+                                                image={pending.landlord_profileImage || pending.landlord_foto_perfil}
+                                            />
                                             <div className="match-preview-info">
                                                 <p className="match-preview-name">{pending.landlord_nombre || 'Arrendador'}</p>
                                                 <p className="match-preview-detail">{pending.propiedad_titulo || 'Propiedad'}</p>
@@ -284,7 +322,6 @@ function TenantDashboard() {
                         </div>
                     </div>
                 </div>
-
 
                 <div className="quick-links animate-fade-in-up" style={{ animationDelay: '0.3s' }}>
                     <Link to="/tenant/properties" className="quick-link-card">
@@ -311,7 +348,7 @@ function TenantDashboard() {
                 title="Calificar arrendador"
                 subjectName={ratingTargetPendingLandlord?.landlord_nombre || 'arrendador'}
                 submitting={submittingPendingRating}
-                submitLabel="Guardar calificación"
+                submitLabel="Guardar calificacion"
                 onClose={() => {
                     if (!submittingPendingRating) setRatingTargetPendingLandlord(null);
                 }}

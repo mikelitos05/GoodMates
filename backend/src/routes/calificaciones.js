@@ -3,17 +3,12 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken, verificarRol } = require('../middleware/authMiddleware');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 const {
     parsearPuntuacionDecimal,
     obtenerPendientesCalificacionLandlord,
     obtenerPendientesCalificacionTenant,
 } = require('../services/ratingsService');
-
-function construirAvatar(nombre, apellido) {
-    const inicialNombre = (nombre || '?').charAt(0).toUpperCase();
-    const inicialApellido = (apellido || '?').charAt(0).toUpperCase();
-    return `${inicialNombre}${inicialApellido}`;
-}
 
 async function upsertCalificacion(connection, {
     idUsuarioCalificador,
@@ -343,6 +338,7 @@ router.get('/usuario/:id', verificarToken, async (req, res) => {
                 u.nombre AS calificador_nombre,
                 u.apellido AS calificador_apellido,
                 u.nombre_usuario AS calificador_username,
+                u.foto_perfil AS calificador_foto_perfil,
                 p.titulo AS propiedad_titulo
              FROM calificaciones c
              JOIN usuarios u ON c.id_usuario_calificador = u.id_usuario
@@ -373,6 +369,8 @@ router.get('/usuario/:id', verificarToken, async (req, res) => {
                         nombre: `${c.calificador_nombre} ${c.calificador_apellido}`.trim(),
                         username: c.calificador_username,
                         avatar: construirAvatar(c.calificador_nombre, c.calificador_apellido),
+                        foto_perfil: normalizarFotoPerfil(c.calificador_foto_perfil),
+                        profileImage: normalizarFotoPerfil(c.calificador_foto_perfil),
                     },
                     propiedad: c.propiedad_titulo || null,
                     id_propiedad: c.id_propiedad || null,

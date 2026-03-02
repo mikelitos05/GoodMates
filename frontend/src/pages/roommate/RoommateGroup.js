@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { getImageUrl, getMyGroup, removeGroupMember, rateRoommate } from '../../services/api';
 import RatingModal from '../../components/shared/RatingModal';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './RoommateGroup.css';
 
 function RoommateGroup() {
@@ -139,6 +140,7 @@ function RoommateGroup() {
                                 const memberId = member.id;
                                 const fullName = member.nombre || '';
                                 const initials = member.avatar || (fullName[0] || '??');
+                                const memberPhoto = member.profileImage || member.foto_perfil || null;
                                 const promedioRaw = member.calificacionPromedio !== null && member.calificacionPromedio !== undefined
                                     ? Number(member.calificacionPromedio)
                                     : null;
@@ -150,7 +152,12 @@ function RoommateGroup() {
                                 const miCalificacion = Number.isFinite(miRaw) ? miRaw : null;
                                 return (
                                     <div key={memberId} className="member-card">
-                                        <div className="avatar avatar-lg">{initials}</div>
+                                        <UserAvatar
+                                            className="avatar-lg"
+                                            name={fullName}
+                                            initials={initials}
+                                            image={memberPhoto}
+                                        />
                                         <div className="member-info">
                                             <h3 className="member-name">
                                                 {fullName} {memberId === user?.id && <span className="you-badge">(Tú)</span>}

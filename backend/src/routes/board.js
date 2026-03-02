@@ -3,6 +3,7 @@ const router = express.Router();
 const { v4: uuidv4 } = require('uuid');
 const { pool } = require('../config/db');
 const { verificarToken } = require('../middleware/authMiddleware');
+const { construirAvatar, normalizarFotoPerfil } = require('../utils/avatar');
 
 // Obtener publicaciones del board de un grupo
 router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
@@ -24,7 +25,7 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
 
         // Obtener publicaciones con datos del autor
         const [publicaciones] = await pool.query(
-            `SELECT pb.*, u.nombre as autor_nombre, u.apellido as autor_apellido
+            `SELECT pb.*, u.nombre as autor_nombre, u.apellido as autor_apellido, u.foto_perfil as autor_foto_perfil
        FROM publicaciones_board pb
        JOIN usuarios u ON pb.id_autor = u.id_usuario
        WHERE pb.id_grupo = ?
@@ -36,7 +37,7 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
         const publicacionesConRespuestas = await Promise.all(
             publicaciones.map(async (pub) => {
                 const [respuestas] = await pool.query(
-                    `SELECT rb.*, u.nombre as autor_nombre, u.apellido as autor_apellido
+                    `SELECT rb.*, u.nombre as autor_nombre, u.apellido as autor_apellido, u.foto_perfil as autor_foto_perfil
            FROM respuestas_board rb
            JOIN usuarios u ON rb.id_autor = u.id_usuario
            WHERE rb.id_publicacion = ?
@@ -49,7 +50,8 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
                     groupId: pub.id_grupo,
                     authorId: pub.id_autor,
                     authorName: `${pub.autor_nombre} ${pub.autor_apellido}`,
-                    authorAvatar: (pub.autor_nombre[0] + pub.autor_apellido[0]).toUpperCase(),
+                    authorAvatar: construirAvatar(pub.autor_nombre, pub.autor_apellido),
+                    authorPhoto: normalizarFotoPerfil(pub.autor_foto_perfil),
                     title: pub.titulo,
                     content: pub.contenido,
                     type: pub.tipo,
@@ -58,7 +60,8 @@ router.get('/grupo/:idGrupo', verificarToken, async (req, res) => {
                         id: r.id_respuesta,
                         authorId: r.id_autor,
                         authorName: `${r.autor_nombre} ${r.autor_apellido}`,
-                        authorAvatar: (r.autor_nombre[0] + r.autor_apellido[0]).toUpperCase(),
+                        authorAvatar: construirAvatar(r.autor_nombre, r.autor_apellido),
+                        authorPhoto: normalizarFotoPerfil(r.autor_foto_perfil),
                         content: r.contenido,
                         createdAt: r.fecha_creacion,
                     })),

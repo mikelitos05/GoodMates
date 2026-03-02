@@ -293,7 +293,7 @@ router.get('/mis-solicitudes', verificarToken, verificarRol('tenant'), async (re
     try {
         const [solicitudes] = await pool.query(
             `SELECT s.*, p.titulo AS titulo_propiedad, p.ciudad, p.imagenes,
-                    u.nombre AS landlord_nombre, u.apellido AS landlord_apellido
+                    u.nombre AS landlord_nombre, u.apellido AS landlord_apellido, u.foto_perfil AS landlord_foto_perfil
              FROM solicitudes_informes s
              JOIN propiedades p ON s.id_propiedad = p.id_propiedad
              JOIN usuarios u ON s.id_landlord = u.id_usuario
@@ -325,7 +325,8 @@ router.get('/recibidas', verificarToken, verificarRol('landlord'), async (req, r
     try {
         const [solicitudes] = await pool.query(
             `SELECT s.*, p.titulo AS titulo_propiedad, p.ciudad, p.imagenes,
-                    u.nombre AS tenant_nombre, u.apellido AS tenant_apellido, u.email AS tenant_email
+                    u.nombre AS tenant_nombre, u.apellido AS tenant_apellido, u.email AS tenant_email,
+                    u.foto_perfil AS tenant_foto_perfil
              FROM solicitudes_informes s
              JOIN propiedades p ON s.id_propiedad = p.id_propiedad
              JOIN usuarios u ON s.id_tenant = u.id_usuario

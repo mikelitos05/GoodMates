@@ -150,6 +150,10 @@
     border-radius: var(--radius-lg);
 }
 
+.reply-content {
+    flex: 1;
+}
+
 .reply-author {
     font-size: var(--font-xs);
     font-weight: 700;
@@ -254,9 +258,22 @@
 
 .reply-header-info {
     display: flex;
-    align-items: baseline;
+    align-items: flex-start;
     justify-content: space-between;
     width: 100%;
+    gap: var(--space-3);
+}
+
+.reply-author-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.reply-actions-right {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
 }
 
 .reply-actions {

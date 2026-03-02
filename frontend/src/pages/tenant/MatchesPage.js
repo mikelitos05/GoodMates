@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getAllTenantsCompatibility, requestMatch, getMatches, acceptMatch, rejectMatch, unlinkMatch } from '../../services/api';
+import UserAvatar from '../../components/shared/UserAvatar';
 import './MatchesPage.css';
 
 function MatchesPage() {
@@ -18,6 +19,7 @@ function MatchesPage() {
         estado: m.estado || m.status || 'pendiente',
         porcentaje_compatibilidad: m.porcentaje_compatibilidad ?? m.compatibility ?? 0,
         usuario_nombre: m.usuario_nombre || m.matchedUserName || 'Usuario',
+        matchedUserPhoto: m.matchedUserPhoto || m.matched_user_photo || null,
         ciudad: m.ciudad || m.matchedUserCity || '',
         edad: m.edad || m.matchedUserAge || '',
         hobbies: Array.isArray(m.hobbies) ? m.hobbies : [],
@@ -207,6 +209,7 @@ function MatchesPage() {
                             const compatibility = tenant.compatibilidad || 0;
                             const inGroup = !!tenant.grupo_propiedad;
                             const matchEstado = tenant.match_estado;
+                            const profileImage = tenant.profileImage || tenant.foto_perfil || tenant.matchedUserPhoto || null;
                             const ratingRaw = tenant.calificacion_promedio !== null && tenant.calificacion_promedio !== undefined
                                 ? Number(tenant.calificacion_promedio)
                                 : null;
@@ -216,7 +219,12 @@ function MatchesPage() {
                             return (
                                 <div key={tenant.id_usuario} className="match-card animate-fade-in-up">
                                     <div className="match-card-left">
-                                        <div className="avatar avatar-lg">{getInitials(fullName)}</div>
+                                        <UserAvatar
+                                            className="avatar-lg"
+                                            name={fullName}
+                                            initials={getInitials(fullName)}
+                                            image={profileImage}
+                                        />
                                         <div className="match-compatibility-ring">
                                             <svg viewBox="0 0 36 36" className="compatibility-circle">
                                                 <path
@@ -337,6 +345,7 @@ function MatchesPage() {
                             const nombre = match.usuario_nombre || 'Usuario';
                             const compatibility = match.porcentaje_compatibilidad || 0;
                             const status = match.estado || 'pendiente';
+                            const profileImage = match.matchedUserPhoto || match.profileImage || match.foto_perfil || null;
                             const ratingRaw = match.calificacion_promedio !== null && match.calificacion_promedio !== undefined
                                 ? Number(match.calificacion_promedio)
                                 : null;
@@ -350,7 +359,12 @@ function MatchesPage() {
                                         }`}
                                 >
                                     <div className="match-card-left">
-                                        <div className="avatar avatar-lg">{getInitials(nombre)}</div>
+                                        <UserAvatar
+                                            className="avatar-lg"
+                                            name={nombre}
+                                            initials={getInitials(nombre)}
+                                            image={profileImage}
+                                        />
                                         <div className="match-compatibility-ring">
                                             <svg viewBox="0 0 36 36" className="compatibility-circle">
                                                 <path

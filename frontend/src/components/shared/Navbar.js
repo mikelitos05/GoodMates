@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
+import UserAvatar from './UserAvatar';
 import './Navbar.css';
 
 function Navbar() {
@@ -13,8 +14,8 @@ function Navbar() {
 
     const displayName = user ? (user.username || 'Usuario') : '';
     const fullName = user ? `${user.nombre || ''} ${user.apellido || ''}`.trim() || displayName : '';
+    const profileImage = user?.profileImage || user?.foto_perfil || null;
 
-    // Cerrar dropdown al hacer clic fuera
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -25,7 +26,6 @@ function Navbar() {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    // Cerrar dropdown al cambiar de ruta
     useEffect(() => {
         setDropdownOpen(false);
     }, [location.pathname]);
@@ -57,9 +57,7 @@ function Navbar() {
                     { path: '/landlord/tenants', label: 'Inquilinos' },
                 ];
             case 'admin':
-                return [
-                    { path: '/admin/dashboard', label: 'Panel Admin' },
-                ];
+                return [{ path: '/admin/dashboard', label: 'Panel Admin' }];
             default:
                 return [];
         }
@@ -95,17 +93,28 @@ function Navbar() {
                                 className="user-menu-trigger"
                                 onClick={() => setDropdownOpen(!dropdownOpen)}
                             >
-                                <div className="avatar avatar-sm">{user.avatar}</div>
+                                <UserAvatar
+                                    className="avatar-sm"
+                                    name={fullName}
+                                    initials={user.avatar}
+                                    image={profileImage}
+                                />
                                 <span className="user-name">{displayName}</span>
                                 <span className={`dropdown-arrow ${dropdownOpen ? 'open' : ''}`}>▾</span>
                             </button>
                             {dropdownOpen && (
                                 <div className="user-dropdown animate-fade-in">
                                     <div className="dropdown-header">
-                                        <div className="avatar">{user.avatar}</div>
+                                        <UserAvatar
+                                            name={fullName}
+                                            initials={user.avatar}
+                                            image={profileImage}
+                                        />
                                         <div>
                                             <p className="dropdown-name">{fullName}</p>
-                                            <p className="dropdown-role">{user.role === 'tenant' ? 'Inquilino' : user.role === 'landlord' ? 'Arrendador' : 'Administrador'}</p>
+                                            <p className="dropdown-role">
+                                                {user.role === 'tenant' ? 'Inquilino' : user.role === 'landlord' ? 'Arrendador' : 'Administrador'}
+                                            </p>
                                         </div>
                                     </div>
                                     <div className="dropdown-divider" />
@@ -115,14 +124,14 @@ function Navbar() {
                                         </Link>
                                     )}
                                     <button className="dropdown-item" onClick={handleLogout}>
-                                        Cerrar Sesión
+                                        Cerrar Sesion
                                     </button>
                                 </div>
                             )}
                         </div>
                     ) : (
                         <div className="auth-buttons">
-                            <Link to="/login" className="btn btn-ghost">Iniciar Sesión</Link>
+                            <Link to="/login" className="btn btn-ghost">Iniciar Sesion</Link>
                             <Link to="/register" className="btn btn-primary">Registrarse</Link>
                         </div>
                     )}
