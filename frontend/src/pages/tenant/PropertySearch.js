@@ -1,15 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet';
-import 'leaflet/dist/leaflet.css';
 import { getProperties, getImageUrl } from '../../services/api';
 import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import { getCoordinates, MEXICO_CENTER, MEXICO_ZOOM } from '../../data/cityCoordinates';
+import { loadGoogleMapsApi } from '../../utils/googleMapsLoader';
 import './PropertySearch.css';
 
 const NEUTRAL_MATCH_COLOR = '#94a3b8';
 
-/* ───── helper: compatibilidad real por propiedad ───── */
 function getCompatibility(property) {
     const raw = property.compatibilidad ?? property.compatibility ?? property.porcentaje_compatibilidad;
     if (raw === null || raw === undefined || raw === '') return null;
@@ -33,37 +31,82 @@ function getPropertyRatingSummary(property) {
     return { promedio: Number(promedio.toFixed(1)), count };
 }
 
-/* ───── helper: color semáforo ───── */
 function matchColor(pct) {
     if (pct === null || pct === undefined) return NEUTRAL_MATCH_COLOR;
-    // 0% = rojo, 50% = amarillo, 100% = verde
     const r = pct < 50 ? 255 : Math.round(255 - (pct - 50) * 5.1);
     const g = pct > 50 ? 220 : Math.round(pct * 4.4);
     return `rgb(${r}, ${g}, 40)`;
 }
 
-/* ───── helper: get coordinates preferring stored lat/lng ───── */
 function getPropertyCoords(property) {
-    const lat = property.latitud != null ? parseFloat(property.latitud) : null;
-    const lng = property.longitud != null ? parseFloat(property.longitud) : null;
-    if (lat && lng) return [lat, lng];
+    const lat = property.latitud != null ? Number.parseFloat(property.latitud) : null;
+    const lng = property.longitud != null ? Number.parseFloat(property.longitud) : null;
+    if (Number.isFinite(lat) && Number.isFinite(lng)) return [lat, lng];
     return getCoordinates(property.ciudad || property.city, property.estado || property.estado_ubicacion || property.state);
 }
 
-/* ───── sub-component: re-center map when data changes ───── */
-function MapUpdater({ properties }) {
-    const map = useMap();
-    useEffect(() => {
-        if (properties.length === 0) return;
-        if (properties.length === 1) {
-            const coords = getPropertyCoords(properties[0]);
-            map.setView(coords, 13, { animate: true });
-        } else {
-            const bounds = properties.map((p) => getPropertyCoords(p));
-            map.fitBounds(bounds, { padding: [40, 40], maxZoom: 13, animate: true });
-        }
-    }, [properties, map]);
-    return null;
+function buildMarkerIcon(color, highlighted) {
+    return {
+        path: window.google.maps.SymbolPath.CIRCLE,
+        fillColor: color,
+        fillOpacity: highlighted ? 1 : 0.85,
+        strokeColor: highlighted ? '#ffffff' : 'rgba(0,0,0,0.35)',
+        strokeWeight: highlighted ? 3 : 1.5,
+        scale: highlighted ? 11 : 8,
+    };
+}
+
+function createMapPopupContent(property) {
+    const id = property.id_propiedad || property.id;
+    const title = property.titulo || property.title || '';
+    const city = property.ciudad || property.city || '';
+    const state = property.estado || property.estado_ubicacion || property.state || '';
+    const price = property.precio || property.price || 0;
+    const rooms = property.habitaciones || property.rooms || 0;
+    const availableRooms = property.habitaciones_disponibles || property.availableRooms || 0;
+    const compat = getCompatibility(property);
+    const ratingSummary = getPropertyRatingSummary(property);
+    const hasRating = ratingSummary.promedio !== null && ratingSummary.count > 0;
+
+    const root = document.createElement('div');
+    root.className = 'map-popup';
+
+    const strong = document.createElement('strong');
+    strong.textContent = title;
+    root.appendChild(strong);
+
+    const location = document.createElement('p');
+    location.textContent = `${city}${city && state ? ', ' : ''}${state}`;
+    root.appendChild(location);
+
+    const priceNode = document.createElement('p');
+    priceNode.className = 'map-popup-price';
+    priceNode.textContent = `$${price.toLocaleString()}/mes`;
+    root.appendChild(priceNode);
+
+    const roomsNode = document.createElement('p');
+    roomsNode.textContent = `${rooms} hab. - ${availableRooms} disponible${availableRooms !== 1 ? 's' : ''}`;
+    root.appendChild(roomsNode);
+
+    const ratingNode = document.createElement('p');
+    ratingNode.textContent = hasRating
+        ? `Calificacion: ${ratingSummary.promedio.toFixed(1)} (${ratingSummary.count})`
+        : 'Calificacion: Sin calificaciones';
+    root.appendChild(ratingNode);
+
+    const matchNode = document.createElement('div');
+    matchNode.className = `map-popup-match ${compat !== null ? '' : 'map-popup-match--na'}`.trim();
+    matchNode.style.background = matchColor(compat);
+    matchNode.textContent = compat !== null ? `${compat}% match` : 'N/A';
+    root.appendChild(matchNode);
+
+    const link = document.createElement('a');
+    link.className = 'map-popup-link';
+    link.href = `/tenant/properties/${id}`;
+    link.textContent = 'Ver detalle ->';
+    root.appendChild(link);
+
+    return root;
 }
 
 function PropertySearch() {
@@ -77,7 +120,45 @@ function PropertySearch() {
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [hoveredId, setHoveredId] = useState(null);
-    const [viewMode, setViewMode] = useState('split'); // 'split' | 'list' | 'map'
+    const [viewMode, setViewMode] = useState('split');
+    const [mapError, setMapError] = useState('');
+
+    const mapContainerRef = useRef(null);
+    const mapRef = useRef(null);
+    const infoWindowRef = useRef(null);
+    const markersRef = useRef(new Map());
+
+    const filtered = useMemo(() => properties.filter((p) => {
+        const title = (p.titulo || p.title || '').toLowerCase();
+        const city = (p.ciudad || p.city || '').toLowerCase();
+        const address = (p.direccion || p.address || '').toLowerCase();
+        const searchLower = search.toLowerCase();
+
+        const matchesSearch = title.includes(searchLower) || city.includes(searchLower) || address.includes(searchLower);
+        const price = p.precio || p.price || 0;
+        const matchesPrice = priceRange[1] >= PRICE_FILTER_MAX || (price >= priceRange[0] && price <= priceRange[1]);
+        const rooms = p.habitaciones_disponibles || p.availableRooms || 0;
+        const matchesRooms = rooms >= minRooms;
+        const available = p.disponible !== undefined ? p.disponible : (p.available !== undefined ? p.available : true);
+        const state = (p.estado || p.estado_ubicacion || p.state || '').toLowerCase();
+        const matchesState = !filterState || state === filterState.toLowerCase();
+        const matchesCity = !filterCity || city === filterCity.toLowerCase();
+        return matchesSearch && matchesPrice && matchesRooms && available && matchesState && matchesCity;
+    }), [properties, search, priceRange, minRooms, filterState, filterCity]);
+
+    const clearMapObjects = () => {
+        markersRef.current.forEach(({ marker }) => {
+            marker.setMap(null);
+        });
+        markersRef.current.clear();
+
+        if (infoWindowRef.current) {
+            infoWindowRef.current.close();
+            infoWindowRef.current = null;
+        }
+
+        mapRef.current = null;
+    };
 
     useEffect(() => {
         const fetchProperties = async () => {
@@ -91,23 +172,129 @@ function PropertySearch() {
         fetchProperties();
     }, []);
 
-    const filtered = useMemo(() => properties.filter((p) => {
-        const title = (p.titulo || p.title || '').toLowerCase();
-        const city = (p.ciudad || p.city || '').toLowerCase();
-        const address = (p.direccion || p.address || '').toLowerCase();
-        const matchesSearch = title.includes(search.toLowerCase()) ||
-            city.includes(search.toLowerCase()) ||
-            address.includes(search.toLowerCase());
-        const price = p.precio || p.price || 0;
-        const matchesPrice = priceRange[1] >= PRICE_FILTER_MAX || (price >= priceRange[0] && price <= priceRange[1]);
-        const rooms = p.habitaciones_disponibles || p.availableRooms || 0;
-        const matchesRooms = rooms >= minRooms;
-        const available = p.disponible !== undefined ? p.disponible : (p.available !== undefined ? p.available : true);
-        const state = (p.estado || p.estado_ubicacion || p.state || '').toLowerCase();
-        const matchesState = !filterState || state === filterState.toLowerCase();
-        const matchesCity = !filterCity || city === filterCity.toLowerCase();
-        return matchesSearch && matchesPrice && matchesRooms && available && matchesState && matchesCity;
-    }), [properties, search, priceRange, minRooms, filterState, filterCity]);
+    useEffect(() => {
+        if (viewMode === 'list') {
+            clearMapObjects();
+            return;
+        }
+
+        let cancelled = false;
+
+        const initMap = async () => {
+            try {
+                await loadGoogleMapsApi();
+                if (cancelled || !mapContainerRef.current) return;
+
+                mapRef.current = new window.google.maps.Map(mapContainerRef.current, {
+                    center: { lat: MEXICO_CENTER[0], lng: MEXICO_CENTER[1] },
+                    zoom: MEXICO_ZOOM,
+                    mapTypeControl: false,
+                    fullscreenControl: false,
+                    streetViewControl: false,
+                });
+                infoWindowRef.current = new window.google.maps.InfoWindow();
+                setMapError('');
+            } catch (err) {
+                if (!cancelled) {
+                    setMapError('No se pudo cargar Google Maps. Verifica tu API key.');
+                }
+            }
+        };
+
+        initMap();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [viewMode]);
+
+    useEffect(() => {
+        if (!mapRef.current || !window.google?.maps) return;
+
+        const map = mapRef.current;
+        const markerEntries = markersRef.current;
+        const nextIds = new Set();
+
+        filtered.forEach((property) => {
+            const rawId = property.id_propiedad || property.id;
+            if (!rawId) return;
+            const markerId = String(rawId);
+            const [lat, lng] = getPropertyCoords(property);
+            if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
+
+            const compat = getCompatibility(property);
+            nextIds.add(markerId);
+
+            if (!markerEntries.has(markerId)) {
+                const marker = new window.google.maps.Marker({
+                    map,
+                    position: { lat, lng },
+                    icon: buildMarkerIcon(matchColor(compat), false),
+                    zIndex: 1,
+                });
+
+                marker.addListener('mouseover', () => setHoveredId(rawId));
+                marker.addListener('mouseout', () => setHoveredId((prev) => (String(prev) === markerId ? null : prev)));
+                marker.addListener('click', () => {
+                    const current = markersRef.current.get(markerId);
+                    if (!current || !infoWindowRef.current) return;
+                    infoWindowRef.current.setContent(createMapPopupContent(current.property));
+                    infoWindowRef.current.open({ map, anchor: current.marker });
+                });
+
+                markerEntries.set(markerId, { marker, property });
+                return;
+            }
+
+            const currentEntry = markerEntries.get(markerId);
+            currentEntry.property = property;
+            currentEntry.marker.setMap(map);
+            currentEntry.marker.setPosition({ lat, lng });
+            currentEntry.marker.setIcon(buildMarkerIcon(matchColor(compat), false));
+            currentEntry.marker.setZIndex(1);
+        });
+
+        markerEntries.forEach((entry, markerId) => {
+            if (nextIds.has(markerId)) return;
+            entry.marker.setMap(null);
+            markerEntries.delete(markerId);
+        });
+
+        const coords = filtered
+            .map((property) => getPropertyCoords(property))
+            .filter(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng));
+
+        if (coords.length === 0) {
+            map.setCenter({ lat: MEXICO_CENTER[0], lng: MEXICO_CENTER[1] });
+            map.setZoom(MEXICO_ZOOM);
+            return;
+        }
+
+        if (coords.length === 1) {
+            map.setCenter({ lat: coords[0][0], lng: coords[0][1] });
+            map.setZoom(13);
+            return;
+        }
+
+        const bounds = new window.google.maps.LatLngBounds();
+        coords.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
+        map.fitBounds(bounds, 60);
+    }, [filtered, viewMode]);
+
+    useEffect(() => {
+        if (!window.google?.maps) return;
+
+        markersRef.current.forEach((entry, markerId) => {
+            const compat = getCompatibility(entry.property);
+            const highlighted = String(hoveredId) === markerId;
+            entry.marker.setIcon(buildMarkerIcon(matchColor(compat), highlighted));
+            entry.marker.setZIndex(highlighted ? 999 : 1);
+        });
+    }, [hoveredId]);
+
+    useEffect(() => () => {
+        clearMapObjects();
+    }, []);
 
     const renderPropertyCard = (property, compact = false) => {
         const id = property.id_propiedad || property.id;
@@ -161,13 +348,13 @@ function PropertySearch() {
                     </p>
                     <div className="property-meta">
                         <span>{rooms} hab.</span>
-                        <span>{bathrooms} baños</span>
+                        <span>{bathrooms} banos</span>
                         <span>{availableRooms} disp.</span>
                     </div>
                     <p className="property-rating-summary">
                         {hasRating
-                            ? `Calificación inquilinos: ${ratingSummary.promedio.toFixed(1)} · ${ratingSummary.count} inquilino${ratingSummary.count !== 1 ? 's' : ''} calificado${ratingSummary.count !== 1 ? 's' : ''}`
-                            : 'Calificación inquilinos: Sin calificaciones'}
+                            ? `Calificacion inquilinos: ${ratingSummary.promedio.toFixed(1)} - ${ratingSummary.count} inquilino${ratingSummary.count !== 1 ? 's' : ''} calificado${ratingSummary.count !== 1 ? 's' : ''}`
+                            : 'Calificacion inquilinos: Sin calificaciones'}
                     </p>
                     {!compact && (
                         <div className="property-amenities-preview">
@@ -181,7 +368,7 @@ function PropertySearch() {
                     )}
                     <div className="property-footer">
                         <span className="property-price">${price.toLocaleString()}<span className="price-period">/mes</span></span>
-                        {!compact && <span className="btn btn-primary btn-sm">Ver detalle →</span>}
+                        {!compact && <span className="btn btn-primary btn-sm">Ver detalle -&gt;</span>}
                     </div>
                 </div>
             </Link>
@@ -195,7 +382,7 @@ function PropertySearch() {
                     <div className="search-header-text">
                         <h1 className="section-title">Buscar Propiedades</h1>
                         <p className="section-subtitle">
-                            Encuentra tu próximo hogar entre las propiedades disponibles.
+                            Encuentra tu proximo hogar entre las propiedades disponibles.
                         </p>
                     </div>
                     <div className="view-mode-toggle">
@@ -223,7 +410,6 @@ function PropertySearch() {
                     </div>
                 </div>
 
-                {/* Search bar */}
                 <div className="search-bar animate-fade-in-up" style={{ animationDelay: '0.1s' }}>
                     <div className="search-input-wrapper">
                         <span className="search-icon">
@@ -235,21 +421,20 @@ function PropertySearch() {
                         <input
                             type="text"
                             className="search-input"
-                            placeholder="Buscar por nombre, ciudad o dirección..."
+                            placeholder="Buscar por nombre, ciudad o direccion..."
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
                     <button className="btn btn-outline filter-toggle" onClick={() => setShowFilters(!showFilters)}>
-                        Filtros {showFilters ? '▲' : '▼'}
+                        Filtros {showFilters ? '^' : 'v'}
                     </button>
                 </div>
 
-                {/* Filters */}
                 {showFilters && (
                     <div className="filters-panel animate-fade-in">
                         <div className="filter-group">
-                            <label className="form-label">Precio máximo (MXN/mes)</label>
+                            <label className="form-label">Precio maximo (MXN/mes)</label>
                             <input
                                 type="range"
                                 min="2000"
@@ -260,7 +445,7 @@ function PropertySearch() {
                                 className="range-slider"
                             />
                             <span className="filter-value">
-                                {priceRange[1] >= PRICE_FILTER_MAX ? 'Sin límite' : `$${priceRange[1].toLocaleString()}`}
+                                {priceRange[1] >= PRICE_FILTER_MAX ? 'Sin limite' : `$${priceRange[1].toLocaleString()}`}
                             </span>
                         </div>
                         <div className="filter-group">
@@ -282,8 +467,8 @@ function PropertySearch() {
                             </select>
                         </div>
                         <div className="filter-group">
-                            <label className="form-label">Habitaciones mínimas</label>
-                            <select className="form-select" value={minRooms} onChange={(e) => setMinRooms(parseInt(e.target.value))}>
+                            <label className="form-label">Habitaciones minimas</label>
+                            <select className="form-select" value={minRooms} onChange={(e) => setMinRooms(parseInt(e.target.value, 10))}>
                                 <option value={0}>Cualquiera</option>
                                 <option value={1}>Al menos 1</option>
                                 <option value={2}>Al menos 2</option>
@@ -293,7 +478,6 @@ function PropertySearch() {
                     </div>
                 )}
 
-                {/* Match legend */}
                 <div className="search-results-header">
                     <p className="results-count">
                         {loading ? 'Cargando...' : `${filtered.length} propiedad${filtered.length !== 1 ? 'es' : ''} encontrada${filtered.length !== 1 ? 's' : ''}`}
@@ -311,9 +495,7 @@ function PropertySearch() {
                     </div>
                 </div>
 
-                {/* Main content: split, list, or map */}
                 <div className={`search-layout search-layout--${viewMode}`}>
-                    {/* Property list */}
                     {viewMode !== 'map' && (
                         <div className="search-list-panel">
                             <div className={viewMode === 'split' ? 'properties-list-compact' : 'properties-grid'}>
@@ -323,80 +505,19 @@ function PropertySearch() {
                                 <div className="no-results">
                                     <span className="no-results-icon">Sin resultados</span>
                                     <h3>No se encontraron propiedades</h3>
-                                    <p>Intenta ajustar tus filtros de búsqueda</p>
+                                    <p>Intenta ajustar tus filtros de busqueda</p>
                                 </div>
                             )}
                         </div>
                     )}
 
-                    {/* Map */}
                     {viewMode !== 'list' && (
                         <div className="search-map-panel">
-                            <MapContainer
-                                center={MEXICO_CENTER}
-                                zoom={MEXICO_ZOOM}
-                                scrollWheelZoom={true}
-                                style={{ height: '100%', width: '100%', borderRadius: 'var(--radius-xl)' }}
-                            >
-                                <TileLayer
-                                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                />
-                                <MapUpdater properties={filtered} />
-
-                                {filtered.map((property) => {
-                                    const id = property.id_propiedad || property.id;
-                                    const title = property.titulo || property.title || '';
-                                    const city = property.ciudad || property.city || '';
-                                    const state = property.estado || property.estado_ubicacion || property.state || '';
-                                    const price = property.precio || property.price || 0;
-                                    const rooms = property.habitaciones || property.rooms || 0;
-                                    const availableRooms = property.habitaciones_disponibles || property.availableRooms || 0;
-                                    const compat = getCompatibility(property);
-                                    const ratingSummary = getPropertyRatingSummary(property);
-                                    const hasRating = ratingSummary.promedio !== null && ratingSummary.count > 0;
-                                    const coords = getPropertyCoords(property);
-                                    const isHovered = hoveredId === id;
-
-                                    return (
-                                        <CircleMarker
-                                            key={id}
-                                            center={coords}
-                                            radius={isHovered ? 16 : 10}
-                                            pathOptions={{
-                                                fillColor: matchColor(compat),
-                                                fillOpacity: isHovered ? 1 : 0.85,
-                                                color: isHovered ? '#fff' : 'rgba(0,0,0,0.3)',
-                                                weight: isHovered ? 3 : 1.5,
-                                            }}
-                                            eventHandlers={{
-                                                mouseover: () => setHoveredId(id),
-                                                mouseout: () => setHoveredId(null),
-                                            }}
-                                        >
-                                            <Popup>
-                                                <div className="map-popup">
-                                                    <strong>{title}</strong>
-                                                    <p>{city}{city && state ? ', ' : ''}{state}</p>
-                                                    <p className="map-popup-price">${price.toLocaleString()}/mes</p>
-                                                    <p>{rooms} hab. • {availableRooms} disponible{availableRooms !== 1 ? 's' : ''}</p>
-                                                    <p>
-                                                        {hasRating
-                                                            ? `Calificación: ${ratingSummary.promedio.toFixed(1)} (${ratingSummary.count})`
-                                                            : 'Calificación: Sin calificaciones'}
-                                                    </p>
-                                                    <div className={`map-popup-match ${compat !== null ? '' : 'map-popup-match--na'}`} style={{ background: matchColor(compat) }}>
-                                                        {compat !== null ? `${compat}% match` : 'N/A'}
-                                                    </div>
-                                                    <Link to={`/tenant/properties/${id}`} className="map-popup-link">
-                                                        Ver detalle →
-                                                    </Link>
-                                                </div>
-                                            </Popup>
-                                        </CircleMarker>
-                                    );
-                                })}
-                            </MapContainer>
+                            {mapError ? (
+                                <div className="map-error-box">{mapError}</div>
+                            ) : (
+                                <div ref={mapContainerRef} className="google-map-canvas" />
+                            )}
                         </div>
                     )}
                 </div>

@@ -1,64 +1,17 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '../../contexts/AuthContext';
 import { getMyProperties, createProperty, updateProperty, deleteProperty, getImageUrl } from '../../services/api';
 import { getEstados, getCiudades } from '../../data/mexicoLocations';
 import { AMENIDADES, REGLAS } from '../../data/propertyOptions';
 import { getCoordinates, MEXICO_CENTER } from '../../data/cityCoordinates';
-import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
-import L from 'leaflet';
-import 'leaflet/dist/leaflet.css';
+import { loadGoogleMapsApi } from '../../utils/googleMapsLoader';
 import './PropertyManager.css';
 
-// Fix default leaflet marker icon
-delete L.Icon.Default.prototype._getIconUrl;
-L.Icon.Default.mergeOptions({
-    iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png',
-    iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
-});
-
-/* ─── Map click handler ─── */
-function MapClickHandler({ onLocationSelect }) {
-    useMapEvents({
-        click(e) {
-            onLocationSelect(e.latlng.lat, e.latlng.lng);
-        },
-    });
-    return null;
+function getAddressComponent(components, type) {
+    const found = (components || []).find((component) => component.types?.includes(type));
+    return found?.long_name || '';
 }
 
-/* ─── Fly to a position ─── */
-function MapFlyTo({ lat, lng, zoom }) {
-    const map = useMap();
-    useEffect(() => {
-        if (lat != null && lng != null) {
-            map.flyTo([lat, lng], zoom || 16, { animate: true, duration: 0.8 });
-        }
-    }, [lat, lng, zoom, map]);
-    return null;
-}
-
-/* ─── Reverse Geocode: pin → estado/ciudad ─── */
-async function reverseGeocode(lat, lng) {
-    try {
-        const resp = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&accept-language=es&zoom=14`,
-            { headers: { 'User-Agent': 'GoodMates/1.0' } }
-        );
-        const data = await resp.json();
-        if (data && data.address) {
-            return {
-                state: data.address.state || '',
-                city: data.address.city || data.address.town || data.address.village || data.address.municipality || '',
-            };
-        }
-    } catch (e) {
-        console.warn('Reverse geocode failed:', e);
-    }
-    return null;
-}
-
-/* ─── Match a reverse geocode result to our dropdown data ─── */
+/* --- Match a reverse geocode result to our dropdown data --- */
 function matchLocationToDropdowns(geoResult) {
     if (!geoResult) return { state: '', city: '' };
     const estados = getEstados();
@@ -78,7 +31,6 @@ function matchLocationToDropdowns(geoResult) {
 }
 
 function PropertyManager() {
-    const { user } = useAuth();
     const [properties, setProperties] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
@@ -87,9 +39,13 @@ function PropertyManager() {
     const [imagePreviews, setImagePreviews] = useState([]);  // preview URLs
     const [existingImages, setExistingImages] = useState([]); // paths from DB
     const [geocoding, setGeocoding] = useState(false);
+    const [mapError, setMapError] = useState('');
     const [actionMessage, setActionMessage] = useState(null);
     const fileInputRef = useRef(null);
-    const [mapKey, setMapKey] = useState(0); // force re-mount map
+    const mapContainerRef = useRef(null);
+    const mapRef = useRef(null);
+    const markerRef = useRef(null);
+    const geocoderRef = useRef(null);
 
     const [form, setForm] = useState({
         title: '', description: '', address: '', city: 'Monterrey', state: 'Nuevo León',
@@ -100,6 +56,14 @@ function PropertyManager() {
 
     useEffect(() => {
         fetchProperties();
+    }, []);
+
+    useEffect(() => () => {
+        if (markerRef.current) {
+            markerRef.current.setMap(null);
+            markerRef.current = null;
+        }
+        mapRef.current = null;
     }, []);
 
     const fetchProperties = async () => {
@@ -115,10 +79,32 @@ function PropertyManager() {
         setForm((prev) => ({ ...prev, [field]: value }));
     };
 
-    /* ─── When pin is placed on map ─── */
+    const reverseGeocode = useCallback(async (lat, lng) => {
+        try {
+            await loadGoogleMapsApi();
+            if (!geocoderRef.current) {
+                geocoderRef.current = new window.google.maps.Geocoder();
+            }
+            const result = await geocoderRef.current.geocode({
+                location: { lat, lng },
+            });
+
+            const components = result.results?.[0]?.address_components || [];
+            return {
+                state: getAddressComponent(components, 'administrative_area_level_1'),
+                city: getAddressComponent(components, 'locality')
+                    || getAddressComponent(components, 'administrative_area_level_2')
+                    || getAddressComponent(components, 'sublocality')
+                    || '',
+            };
+        } catch (error) {
+            console.warn('Reverse geocode failed:', error);
+            return null;
+        }
+    }, []);
+
     const handleLocationSelect = useCallback(async (lat, lng) => {
         setForm((prev) => ({ ...prev, lat, lng }));
-        // Reverse geocode to auto-fill state/city
         setGeocoding(true);
         const geoResult = await reverseGeocode(lat, lng);
         const matched = matchLocationToDropdowns(geoResult);
@@ -130,9 +116,110 @@ function PropertyManager() {
             }));
         }
         setGeocoding(false);
-    }, []);
+    }, [reverseGeocode]);
 
-    /* ─── Image handling ─── */
+    useEffect(() => {
+        if (!showForm) {
+            if (markerRef.current) {
+                markerRef.current.setMap(null);
+                markerRef.current = null;
+            }
+            mapRef.current = null;
+            return;
+        }
+
+        let cancelled = false;
+
+        const initMap = async () => {
+            try {
+                await loadGoogleMapsApi();
+                if (cancelled || !mapContainerRef.current) return;
+
+                const [fallbackLat, fallbackLng] = form.city && form.state
+                    ? getCoordinates(form.city, form.state)
+                    : MEXICO_CENTER;
+                const hasPin = form.lat != null && form.lng != null;
+                const center = hasPin
+                    ? { lat: Number(form.lat), lng: Number(form.lng) }
+                    : { lat: fallbackLat, lng: fallbackLng };
+                const zoom = hasPin ? 16 : (form.city ? 14 : 5);
+
+                mapRef.current = new window.google.maps.Map(mapContainerRef.current, {
+                    center,
+                    zoom,
+                    mapTypeControl: false,
+                    streetViewControl: false,
+                    fullscreenControl: false,
+                    clickableIcons: false,
+                });
+
+                if (!geocoderRef.current) {
+                    geocoderRef.current = new window.google.maps.Geocoder();
+                }
+
+                mapRef.current.addListener('click', (event) => {
+                    if (!event.latLng) return;
+                    handleLocationSelect(event.latLng.lat(), event.latLng.lng());
+                });
+
+                if (hasPin) {
+                    markerRef.current = new window.google.maps.Marker({
+                        map: mapRef.current,
+                        position: { lat: Number(form.lat), lng: Number(form.lng) },
+                    });
+                }
+
+                setMapError('');
+            } catch (error) {
+                if (!cancelled) {
+                    setMapError('No se pudo cargar Google Maps. Verifica tu API key.');
+                }
+            }
+        };
+
+        initMap();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [showForm, handleLocationSelect, form.city, form.state, form.lat, form.lng]);
+
+    useEffect(() => {
+        if (!showForm || !mapRef.current || !window.google?.maps) return;
+
+        const hasPin = form.lat != null && form.lng != null;
+        if (hasPin) {
+            const pinPosition = { lat: Number(form.lat), lng: Number(form.lng) };
+
+            if (!markerRef.current) {
+                markerRef.current = new window.google.maps.Marker({
+                    map: mapRef.current,
+                    position: pinPosition,
+                });
+            } else {
+                markerRef.current.setMap(mapRef.current);
+                markerRef.current.setPosition(pinPosition);
+            }
+
+            mapRef.current.panTo(pinPosition);
+            mapRef.current.setZoom(16);
+            return;
+        }
+
+        if (markerRef.current) {
+            markerRef.current.setMap(null);
+            markerRef.current = null;
+        }
+
+        const [centerLat, centerLng] = form.city && form.state
+            ? getCoordinates(form.city, form.state)
+            : MEXICO_CENTER;
+
+        mapRef.current.setCenter({ lat: centerLat, lng: centerLng });
+        mapRef.current.setZoom(form.city ? 14 : 5);
+    }, [showForm, form.lat, form.lng, form.city, form.state]);
+
+    /* --- Image handling --- */
     const handleImageSelect = (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -156,7 +243,7 @@ function PropertyManager() {
         setExistingImages((prev) => prev.filter((_, i) => i !== index));
     };
 
-    /* ─── Edit a property ─── */
+    /* --- Edit a property --- */
     const handleEdit = (prop) => {
         const title = prop.titulo || prop.title || '';
         const description = prop.descripcion || prop.description || '';
@@ -186,7 +273,6 @@ function PropertyManager() {
         setImagePreviews([]);
         setEditingId(prop.id_propiedad || prop.id);
         setShowForm(true);
-        setMapKey((k) => k + 1);
     };
 
     const handleDelete = async (id) => {
@@ -275,28 +361,17 @@ function PropertyManager() {
         setExistingImages([]);
         setEditingId(null);
         setShowForm(false);
-        setMapKey((k) => k + 1);
+        setMapError('');
     };
 
-    /* ─── When state/city dropdown changes, center map there but clear pin ─── */
+    /* --- When state/city dropdown changes, center map there but clear pin --- */
     const handleStateChange = (val) => {
         setForm((prev) => ({ ...prev, state: val, city: '', lat: null, lng: null }));
-        setMapKey((k) => k + 1);
     };
 
     const handleCityChange = (val) => {
         setForm((prev) => ({ ...prev, city: val, lat: null, lng: null }));
-        setMapKey((k) => k + 1);
     };
-
-    // Map center: use pin if placed, else city coords, else Mexico center
-    const mapCenter = form.lat && form.lng
-        ? [form.lat, form.lng]
-        : form.city && form.state
-            ? getCoordinates(form.city, form.state)
-            : MEXICO_CENTER;
-
-    const mapZoom = form.lat ? 16 : form.city ? 14 : 5;
 
     return (
         <div className="manager-page">
@@ -361,43 +436,29 @@ function PropertyManager() {
                                     </select>
                                 </div>
 
-                                {/* ──── MAP LOCATION PICKER ──── */}
+                                {/* ---- MAP LOCATION PICKER ---- */}
                                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                                     <label className="form-label">
                                         Ubicación en el mapa
                                         <span className="form-label-hint">
                                             {geocoding
                                                 ? ' — Detectando ubicación...'
-                                                : form.lat
+                                                : form.lat != null
                                                     ? ` — Lat: ${form.lat.toFixed(7)}, Lng: ${form.lng.toFixed(7)}`
                                                     : ' — Haz click en el mapa para marcar la ubicación exacta'}
                                         </span>
                                     </label>
                                     <div className="map-picker-container">
-                                        <MapContainer
-                                            key={mapKey}
-                                            center={mapCenter}
-                                            zoom={mapZoom}
-                                            scrollWheelZoom={true}
-                                            style={{ height: '100%', width: '100%' }}
-                                        >
-                                            <TileLayer
-                                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                                                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                                            />
-                                            <MapClickHandler onLocationSelect={handleLocationSelect} />
-                                            {form.lat != null && form.lng != null && (
-                                                <>
-                                                    <Marker position={[form.lat, form.lng]} />
-                                                    <MapFlyTo lat={form.lat} lng={form.lng} zoom={16} />
-                                                </>
-                                            )}
-                                        </MapContainer>
-                                        {form.lat && (
+                                        {mapError ? (
+                                            <div className="map-picker-error">{mapError}</div>
+                                        ) : (
+                                            <div ref={mapContainerRef} className="google-map-canvas" />
+                                        )}
+                                        {form.lat != null && (
                                             <button
                                                 type="button"
                                                 className="map-picker-reset"
-                                                onClick={() => { handleChange('lat', null); handleChange('lng', null); setMapKey((k) => k + 1); }}
+                                                onClick={() => { handleChange('lat', null); handleChange('lng', null); }}
                                             >
                                                 Quitar pin
                                             </button>
@@ -430,7 +491,7 @@ function PropertyManager() {
                                     <textarea className="form-textarea" value={form.description} onChange={(e) => handleChange('description', e.target.value)} placeholder="Describe tu propiedad..." required />
                                 </div>
 
-                                {/* ──── IMAGE UPLOAD ──── */}
+                                {/* ---- IMAGE UPLOAD ---- */}
                                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                                     <label className="form-label">Imágenes de la propiedad <span style={{ color: 'var(--danger)' }}>*</span></label>
                                     <input
@@ -585,3 +646,4 @@ function PropertyManager() {
 }
 
 export default PropertyManager;
+

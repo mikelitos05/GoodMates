@@ -77,6 +77,21 @@ export const loginUser = async (nombre_usuario, password) => {
     return result;
 };
 
+// Iniciar sesion con Google Identity Services
+export const googleLoginUser = async (idToken, role = 'tenant') => {
+    const result = await apiRequest(`${API_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ idToken, role }),
+    });
+
+    if (result.success && result.token) {
+        localStorage.setItem('token', result.token);
+    }
+
+    return result;
+};
+
 // Verificar token actual
 export const verifyToken = async () => {
     const token = getToken();
