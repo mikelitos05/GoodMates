@@ -9,9 +9,6 @@ const {
     validarConsistenciaConvivenciaActiva,
     enviarErrorRegla,
 } = require('../services/convivenciaRules');
-const {
-    obtenerResumenPendientesCalificacionLandlord,
-} = require('../services/ratingsService');
 
 async function obtenerTituloPropiedad(executor, idPropiedad) {
     const [rows] = await executor.query(
@@ -459,17 +456,6 @@ router.put('/:id/confirmar', verificarToken, verificarRol('landlord'), async (re
     try {
         const { id } = req.params;
         await connection.beginTransaction();
-
-        const pendientes = await obtenerResumenPendientesCalificacionLandlord(connection, req.usuario.id);
-        if (pendientes.total > 0) {
-            const errorPendientes = construirErrorRegla(
-                'LANDLORD_PENDING_RATINGS',
-                'Tienes calificaciones pendientes por resolver antes de confirmar nuevos inquilinos',
-                409
-            );
-            errorPendientes.pendingRatings = pendientes;
-            throw errorPendientes;
-        }
 
         const [rows] = await connection.query(
             `SELECT *

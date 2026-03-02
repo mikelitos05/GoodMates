@@ -122,6 +122,7 @@ function PropertySearch() {
     const [hoveredId, setHoveredId] = useState(null);
     const [viewMode, setViewMode] = useState('split');
     const [mapError, setMapError] = useState('');
+    const [mapVersion, setMapVersion] = useState(0);
 
     const mapContainerRef = useRef(null);
     const mapRef = useRef(null);
@@ -178,6 +179,11 @@ function PropertySearch() {
             return;
         }
 
+        if (mapRef.current && infoWindowRef.current && window.google?.maps) {
+            window.google.maps.event.trigger(mapRef.current, 'resize');
+            return;
+        }
+
         let cancelled = false;
 
         const initMap = async () => {
@@ -193,6 +199,7 @@ function PropertySearch() {
                     streetViewControl: false,
                 });
                 infoWindowRef.current = new window.google.maps.InfoWindow();
+                setMapVersion((v) => v + 1);
                 setMapError('');
             } catch (err) {
                 if (!cancelled) {
@@ -279,7 +286,7 @@ function PropertySearch() {
         const bounds = new window.google.maps.LatLngBounds();
         coords.forEach(([lat, lng]) => bounds.extend({ lat, lng }));
         map.fitBounds(bounds, 60);
-    }, [filtered, viewMode]);
+    }, [filtered, viewMode, mapVersion]);
 
     useEffect(() => {
         if (!window.google?.maps) return;

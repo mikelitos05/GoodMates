@@ -9,6 +9,7 @@ function InquiryManager() {
     const [inquiries, setInquiries] = useState([]);
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('todas'); // todas, pendiente, aceptada, rechazada
+    const [actionError, setActionError] = useState('');
 
     useEffect(() => {
         fetchInquiries();
@@ -16,48 +17,63 @@ function InquiryManager() {
 
     const fetchInquiries = async () => {
         setLoading(true);
+        setActionError('');
         const result = await getReceivedInquiries();
         if (result.success) {
             setInquiries(result.solicitudes || []);
+        } else {
+            setActionError(result.message || 'No se pudieron cargar las solicitudes');
         }
         setLoading(false);
     };
 
     const handleAccept = async (id) => {
+        setActionError('');
         const result = await acceptInquiry(id);
         if (result.success) {
             setInquiries(prev => prev.map(s =>
                 s.id_solicitud === id ? { ...s, estado: 'aceptada' } : s
             ));
+            return;
         }
+        setActionError(result.message || 'No se pudo aceptar la solicitud');
     };
 
     const handleReject = async (id) => {
+        setActionError('');
         const result = await rejectInquiry(id);
         if (result.success) {
             setInquiries(prev => prev.map(s =>
                 s.id_solicitud === id ? { ...s, estado: 'rechazada' } : s
             ));
+            return;
         }
+        setActionError(result.message || 'No se pudo rechazar la solicitud');
     };
 
     const handleConfirm = async (id) => {
+        setActionError('');
         const result = await confirmInquiry(id);
         if (result.success) {
             const estadoFinal = result.estado || 'confirmada';
             setInquiries(prev => prev.map(s =>
                 s.id_solicitud === id ? { ...s, estado: estadoFinal } : s
             ));
+            return;
         }
+        setActionError(result.message || 'No se pudo confirmar al inquilino');
     };
 
     const handleDecline = async (id) => {
+        setActionError('');
         const result = await declineInquiry(id);
         if (result.success) {
             setInquiries(prev => prev.map(s =>
                 s.id_solicitud === id ? { ...s, estado: 'declinada' } : s
             ));
+            return;
         }
+        setActionError(result.message || 'No se pudo declinar al inquilino');
     };
 
     const filtered = filter === 'todas'
@@ -94,6 +110,9 @@ function InquiryManager() {
                         </button>
                     ))}
                 </div>
+                {actionError && (
+                    <p className="empty-state" style={{ color: '#b42318' }}>{actionError}</p>
+                )}
 
                 {loading ? (
                     <p className="empty-state">Cargando solicitudes...</p>
