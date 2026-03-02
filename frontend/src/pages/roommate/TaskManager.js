@@ -101,15 +101,19 @@ function TaskManager() {
     });
 
     const toggleTask = async (taskId) => {
-        const result = await completeTask(taskId);
+        const currentTask = tasks.find((t) => (t.id_tarea || t.id) === taskId);
+        if (!currentTask) return;
+
+        const currentStatus = currentTask.estado || currentTask.status;
+        const newStatus = (currentStatus === 'completada' || currentStatus === 'completed') ? 'pendiente' : 'completada';
+        const result = await completeTask(taskId, newStatus);
         if (result.success) {
             setTasks((prev) =>
                 prev.map((t) => {
                     const id = t.id_tarea || t.id;
                     if (id === taskId) {
-                        const currentStatus = t.estado || t.status;
-                        const newStatus = (currentStatus === 'completada' || currentStatus === 'completed') ? 'pendiente' : 'completada';
-                        return { ...t, estado: newStatus, status: newStatus };
+                        const persistedStatus = result.estado || newStatus;
+                        return { ...t, estado: persistedStatus, status: persistedStatus };
                     }
                     return t;
                 })

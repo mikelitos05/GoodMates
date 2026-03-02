@@ -57,6 +57,12 @@ function TenantProfile() {
     const [activeSection, setActiveSection] = useState('personal');
     const [reputacion, setReputacion] = useState(null);
     const [calificaciones, setCalificaciones] = useState([]);
+    const [expandedHobbyCategories, setExpandedHobbyCategories] = useState(() =>
+        hobbyCategories.reduce((acc, cat, index) => {
+            acc[cat.category] = index === 0;
+            return acc;
+        }, {})
+    );
     const isProfileIncomplete = !user?.perfil_completo;
 
     // Cargar perfil del backend al montar
@@ -105,6 +111,13 @@ function TenantProfile() {
         } else {
             handleChange('hobbies', [...hobbies, hobby]);
         }
+    };
+
+    const toggleHobbyCategory = (category) => {
+        setExpandedHobbyCategories((prev) => ({
+            ...prev,
+            [category]: !prev[category],
+        }));
     };
 
     const handleSave = async () => {
@@ -336,18 +349,30 @@ function TenantProfile() {
                                     <label className="form-label">Hobbies e intereses</label>
                                     {hobbyCategories.map((cat) => (
                                         <div key={cat.category} className="hobby-category-section">
-                                            <h4 className="hobby-category-title">{cat.category}</h4>
-                                            <div className="hobbies-grid">
-                                                {cat.hobbies.map((hobby) => (
-                                                    <button
-                                                        key={hobby}
-                                                        className={`hobby-tag ${(profile.hobbies || []).includes(hobby) ? 'selected' : ''}`}
-                                                        onClick={() => handleHobbiesChange(hobby)}
-                                                    >
-                                                        {hobby}
-                                                    </button>
-                                                ))}
-                                            </div>
+                                            <button
+                                                type="button"
+                                                className="hobby-category-toggle"
+                                                onClick={() => toggleHobbyCategory(cat.category)}
+                                            >
+                                                <h4 className="hobby-category-title">{cat.category}</h4>
+                                                <span className="hobby-category-icon">
+                                                    {expandedHobbyCategories[cat.category] ? '−' : '+'}
+                                                </span>
+                                            </button>
+                                            {expandedHobbyCategories[cat.category] && (
+                                                <div className="hobbies-grid">
+                                                    {cat.hobbies.map((hobby) => (
+                                                        <button
+                                                            key={hobby}
+                                                            type="button"
+                                                            className={`hobby-tag ${(profile.hobbies || []).includes(hobby) ? 'selected' : ''}`}
+                                                            onClick={() => handleHobbiesChange(hobby)}
+                                                        >
+                                                            {hobby}
+                                                        </button>
+                                                    ))}
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>

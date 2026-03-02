@@ -231,10 +231,11 @@ router.put('/:id', verificarToken, async (req, res) => {
     }
 });
 
-// Marcar una tarea como completada
+// Cambiar estado de una tarea (completada/pendiente) o completar por defecto
 router.put('/:id/completar', verificarToken, async (req, res) => {
     try {
         const { id } = req.params;
+        const { estado } = req.body || {};
 
         // Verificar que la tarea existe
         const [tarea] = await pool.query(
@@ -262,14 +263,21 @@ router.put('/:id/completar', verificarToken, async (req, res) => {
             });
         }
 
+        const estadosPermitidos = new Set(['pendiente', 'completada']);
+        const estadoActual = tarea[0].estado;
+        const estadoNuevo = estadosPermitidos.has(estado)
+            ? estado
+            : (estadoActual === 'completada' ? 'pendiente' : 'completada');
+
         await pool.query(
             'UPDATE tareas SET estado = ? WHERE id_tarea = ?',
-            ['completada', id]
+            [estadoNuevo, id]
         );
 
         res.json({
             success: true,
-            message: 'Tarea marcada como completada',
+            message: `Estado de tarea actualizado a ${estadoNuevo}`,
+            estado: estadoNuevo,
         });
 
     } catch (error) {

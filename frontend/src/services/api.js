@@ -366,11 +366,12 @@ export const updateTask = async (taskId, taskData) => {
     });
 };
 
-// Completar tarea
-export const completeTask = async (taskId) => {
+// Cambiar estado de tarea (pendiente/completada)
+export const completeTask = async (taskId, estado) => {
     return await apiRequest(`${API_URL}/tareas/${taskId}/completar`, {
         method: 'PUT',
         headers: authHeaders(),
+        body: estado ? JSON.stringify({ estado }) : undefined,
     });
 };
 
