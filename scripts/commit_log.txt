@@ -2,3 +2,5 @@
 error: failed to push some refs to 'https://github.com/mikelitos05/GoodMates.git'
 [2026-03-28 01:12:30] ERROR - git push falló: error: src refspec main does not match any
 error: failed to push some refs to 'https://github.com/mikelitos05/GoodMates.git'
+[2026-03-28 01:14:22] ERROR - git push falló: remote: Invalid username or token. Password authentication is not supported for Git operations.
+fatal: Authentication failed for 'https://github.com/mikelitos05/GoodMates.git/'
