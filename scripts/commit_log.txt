@@ -10,3 +10,5 @@ If this is intended, set `credential.protectProtocol=false`
 fatal: Authentication failed for 'https://github.com/mikelitos05/GoodMates.git/'
 [2026-03-28 01:18:35] ERROR - git push falló: remote: Invalid username or token. Password authentication is not supported for Git operations.
 fatal: Authentication failed for 'https://github.com/mikelitos05/GoodMates.git/'
+[2026-03-28 01:19:11] ERROR - git push falló: remote: Permission to mikelitos05/GoodMates.git denied to mikelitos05.
+fatal: unable to access 'https://github.com/mikelitos05/GoodMates.git/': The requested URL returned error: 403
