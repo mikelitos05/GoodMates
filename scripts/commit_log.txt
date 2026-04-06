@@ -14,3 +14,5 @@ fatal: Authentication failed for 'https://github.com/mikelitos05/GoodMates.git/'
 fatal: unable to access 'https://github.com/mikelitos05/GoodMates.git/': The requested URL returned error: 403
 [2026-03-28 01:23:21] ERROR - git push falló: fatal: credential value for password contains carriage return
 If this is intended, set `credential.protectProtocol=false`
+[2026-03-28 01:23:40] ERROR - git push falló: remote: Permission to mikelitos05/GoodMates.git denied to mikelitos05.
+fatal: unable to access 'https://github.com/mikelitos05/GoodMates.git/': The requested URL returned error: 403
