@@ -1,0 +1,767 @@
+# ============================================================
+# cloudfront.yaml - AWS CloudFormation Template
+# Infraestructura como Codigo para GoodMates en AWS
+#
+# Recursos creados:
+#   - S3 Bucket     -> Hosting del frontend React (build estatico)
+#   - CloudFront    -> CDN global con HTTPS y cache optimizado
+#   - OAC           -> Origin Access Control (S3 privado)
+#   - ECS Cluster   -> Contenedores Docker en Fargate
+#   - Task Definitions -> Backend Node.js y Frontend Nginx
+#   - ALB           -> Application Load Balancer para el backend
+#   - RDS MySQL     -> Base de datos en AWS gestionada
+#   - VPC + Subnets -> Red privada para los servicios
+#   - Security Groups -> Reglas de firewall
+#   - IAM Roles     -> Permisos minimos para ECS
+#
+# Uso:
+#   aws cloudformation deploy \
+#     --template-file infra/aws/cloudfront.yaml \
+#     --stack-name goodmates-prod \
+#     --capabilities CAPABILITY_NAMED_IAM \
+#     --parameter-overrides \
+#       DBPassword=<tu_password_seguro> \
+#       JWTSecret=<tu_jwt_secret_seguro> \
+#       GoogleClientId=<tu_google_client_id>
+# ============================================================
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "GoodMates - Infraestructura completa AWS con CloudFront, ECS Fargate y RDS MySQL"
+
+# ── Parametros configurables ─────────────────────────────────
+Parameters:
+
+  ProjectName:
+    Type: String
+    Default: goodmates
+    Description: Nombre base del proyecto (se usa en IDs de recursos)
+
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues: [production, staging, development]
+    Description: Entorno de despliegue
+
+  BackendImage:
+    Type: String
+    Description: "URI de la imagen Docker del backend en ECR. Ej: 123456789.dkr.ecr.us-east-1.amazonaws.com/goodmates-backend:latest"
+
+  FrontendImage:
+    Type: String
+    Description: "URI de la imagen Docker del frontend en ECR. Ej: 123456789.dkr.ecr.us-east-1.amazonaws.com/goodmates-frontend:latest"
+
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    Description: "Contrasena de la base de datos MySQL (minimo 8 caracteres)"
+
+  DBUsername:
+    Type: String
+    Default: goodmates_user
+    Description: "Usuario de la base de datos MySQL"
+
+  JWTSecret:
+    Type: String
+    NoEcho: true
+    MinLength: 32
+    Description: "Secreto JWT para firmar tokens (minimo 32 caracteres)"
+
+  GoogleClientId:
+    Type: String
+    Default: ""
+    Description: "Google OAuth Client ID (opcional)"
+
+  CertificateArn:
+    Type: String
+    Default: ""
+    Description: "ARN del certificado SSL en ACM para dominio propio (dejar vacio si no tienes dominio)"
+
+# ── Condiciones ──────────────────────────────────────────────
+Conditions:
+  HasCertificate: !Not [!Equals [!Ref CertificateArn, ""]]
+  IsProduction: !Equals [!Ref Environment, "production"]
+
+# ── Recursos AWS ─────────────────────────────────────────────
+Resources:
+
+  # ============================================================
+  # VPC - Red Privada Virtual
+  # ============================================================
+  GoodMatesVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-vpc"
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Internet Gateway para acceso publico
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-igw"
+
+  VPCGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref GoodMatesVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  # ── Subnets Publicas (para ALB) ─────────────────────────────
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GoodMatesVPC
+      CidrBlock: 10.0.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-public-subnet-1"
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GoodMatesVPC
+      CidrBlock: 10.0.2.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-public-subnet-2"
+
+  # ── Subnets Privadas (para ECS y RDS) ───────────────────────
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GoodMatesVPC
+      CidrBlock: 10.0.3.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-private-subnet-1"
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref GoodMatesVPC
+      CidrBlock: 10.0.4.0/24
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-private-subnet-2"
+
+  # Route tables publicas
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref GoodMatesVPC
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: VPCGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1RouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2RouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  # ============================================================
+  # S3 BUCKET - Hosting del Frontend React
+  # ============================================================
+  FrontendBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-frontend-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ["*"]
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: ["*"]
+            MaxAge: 3600
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Bucket para uploads de imagenes de propiedades
+  UploadsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-uploads-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 30
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================
+  # CLOUDFRONT - CDN Global
+  # ============================================================
+
+  # Origin Access Control (reemplaza OAI, mas seguro)
+  CloudFrontOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${ProjectName}-oac"
+        Description: "OAC para acceso privado al bucket S3 del frontend"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # Bucket Policy: Permite solo a CloudFront leer el S3
+  FrontendBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref FrontendBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub "${FrontendBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}"
+
+  # Cache Policies
+  StaticAssetsCachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties:
+      CachePolicyConfig:
+        Name: !Sub "${ProjectName}-static-assets-cache"
+        DefaultTTL: 86400      # 1 dia
+        MinTTL: 3600           # 1 hora
+        MaxTTL: 31536000       # 1 anio
+        ParametersInCacheKeyAndForwardedToOrigin:
+          CookiesConfig:
+            CookieBehavior: none
+          HeadersConfig:
+            HeaderBehavior: none
+          QueryStringsConfig:
+            QueryStringBehavior: none
+          EnableAcceptEncodingGzip: true
+          EnableAcceptEncodingBrotli: true
+
+  # CloudFront Distribution
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "GoodMates ${Environment} - CDN Distribution"
+        Enabled: true
+        HttpVersion: http2and3
+        IPV6Enabled: true
+        PriceClass: PriceClass_100  # USA, Canada, Europa (mas barato)
+
+        # Configuracion del dominio y certificado SSL
+        Aliases: !If
+          - HasCertificate
+          - [!Sub "www.${ProjectName}.com", !Sub "${ProjectName}.com"]
+          - !Ref AWS::NoValue
+        ViewerCertificate: !If
+          - HasCertificate
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - CloudFrontDefaultCertificate: true
+
+        # Custom error pages para SPA React (redirige 403/404 a index.html)
+        CustomErrorResponses:
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+            ErrorCachingMinTTL: 0
+
+        # Default Cache Behavior: Frontend S3 origin
+        DefaultCacheBehavior:
+          TargetOriginId: S3FrontendOrigin
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS]
+          CachedMethods: [GET, HEAD]
+          CachePolicyId: !Ref StaticAssetsCachePolicy
+          Compress: true
+
+        # Behavior para /api/* -> Backend ALB (sin cache)
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: BackendALBOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled (managed policy)
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # AllViewerExceptHostHeader
+            Compress: false
+
+          # Websockets de Socket.io
+          - PathPattern: /socket.io/*
+            TargetOriginId: BackendALBOrigin
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac
+            Compress: false
+
+          # Uploads (imagenes de propiedades)
+          - PathPattern: /uploads/*
+            TargetOriginId: BackendALBOrigin
+            ViewerProtocolPolicy: redirect-to-https
+            AllowedMethods: [GET, HEAD]
+            CachedMethods: [GET, HEAD]
+            CachePolicyId: !Ref StaticAssetsCachePolicy
+            Compress: true
+
+        # Origins configurados
+        Origins:
+          # Origen 1: S3 para frontend estatico
+          - Id: S3FrontendOrigin
+            DomainName: !GetAtt FrontendBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ""  # Vacio al usar OAC
+            OriginAccessControlId: !GetAtt CloudFrontOAC.Id
+
+          # Origen 2: ALB para el backend API
+          - Id: BackendALBOrigin
+            DomainName: !GetAtt BackendALB.DNSName
+            CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              OriginProtocolPolicy: http-only  # ALB interno en HTTP (CloudFront pone HTTPS al exterior)
+              OriginReadTimeout: 60
+              OriginKeepaliveTimeout: 5
+
+        # Logging de accesos a CloudFront
+        Logging:
+          Bucket: !GetAtt LogsBucket.DomainName
+          IncludeCookies: false
+          Prefix: cloudfront/
+
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Bucket de logs de CloudFront
+  LogsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-logs-${AWS::AccountId}"
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerPreferred
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldLogs
+            Status: Enabled
+            ExpirationInDays: 90
+
+  # ============================================================
+  # SECURITY GROUPS
+  # ============================================================
+
+  # SG para el Application Load Balancer (publico)
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group para el ALB del backend"
+      VpcId: !Ref GoodMatesVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: "HTTP desde CloudFront y el mundo"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: "HTTPS desde CloudFront"
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-alb-sg"
+
+  # SG para los contenedores ECS (solo desde el ALB)
+  ECSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group para las tasks de ECS Fargate"
+      VpcId: !Ref GoodMatesVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 5001
+          ToPort: 5001
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: "Backend port desde el ALB"
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+          Description: "Frontend port desde el ALB"
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-ecs-sg"
+
+  # SG para RDS MySQL (solo desde ECS)
+  RDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Security Group para RDS MySQL"
+      VpcId: !Ref GoodMatesVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref ECSSecurityGroup
+          Description: "MySQL desde ECS tasks"
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-rds-sg"
+
+  # ============================================================
+  # RDS - MySQL Gestionado en AWS
+  # ============================================================
+  RDSSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Subnet group para RDS MySQL de GoodMates"
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  RDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot  # Snapshot antes de eliminar
+    Properties:
+      DBInstanceIdentifier: !Sub "${ProjectName}-mysql"
+      DBName: !Sub "${ProjectName}"
+      Engine: mysql
+      EngineVersion: "8.0.35"
+      DBInstanceClass: !If [IsProduction, db.t3.small, db.t3.micro]
+      AllocatedStorage: "20"
+      MaxAllocatedStorage: 100
+      StorageType: gp2
+      StorageEncrypted: true
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      VPCSecurityGroups:
+        - !Ref RDSSecurityGroup
+      DBSubnetGroupName: !Ref RDSSubnetGroup
+      MultiAZ: !If [IsProduction, true, false]
+      BackupRetentionPeriod: !If [IsProduction, 7, 1]
+      DeletionProtection: !If [IsProduction, true, false]
+      PubliclyAccessible: false
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+        - Key: Environment
+          Value: !Ref Environment
+
+  # ============================================================
+  # ECS - Cluster y Servicios con Fargate
+  # ============================================================
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub "${ProjectName}-cluster"
+      CapacityProviders:
+        - FARGATE
+        - FARGATE_SPOT
+      DefaultCapacityProviderStrategy:
+        - CapacityProvider: !If [IsProduction, FARGATE, FARGATE_SPOT]
+          Weight: 1
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # IAM Role para las Task Definitions
+  ECSTaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ecs-execution-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+      Policies:
+        - PolicyName: SecretsManagerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Sub "arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/*"
+
+  ECSTaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-ecs-task-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3UploadsAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:DeleteObject
+                Resource: !Sub "${UploadsBucket.Arn}/*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource: !GetAtt UploadsBucket.Arn
+
+  # Log Group para CloudWatch
+  BackendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${ProjectName}/backend"
+      RetentionInDays: 30
+
+  FrontendLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/ecs/${ProjectName}/frontend"
+      RetentionInDays: 14
+
+  # Task Definition: Backend
+  BackendTaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${ProjectName}-backend"
+      Cpu: "512"
+      Memory: "1024"
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      ExecutionRoleArn: !GetAtt ECSTaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt ECSTaskRole.Arn
+      ContainerDefinitions:
+        - Name: backend
+          Image: !Ref BackendImage
+          Essential: true
+          PortMappings:
+            - ContainerPort: 5001
+              Protocol: tcp
+          Environment:
+            - Name: NODE_ENV
+              Value: production
+            - Name: PORT
+              Value: "5001"
+            - Name: DB_HOST
+              Value: !GetAtt RDSInstance.Endpoint.Address
+            - Name: DB_PORT
+              Value: "3306"
+            - Name: DB_NAME
+              Value: !Ref ProjectName
+            - Name: DB_USER
+              Value: !Ref DBUsername
+            - Name: DB_PASSWORD
+              Value: !Ref DBPassword
+            - Name: JWT_SECRET
+              Value: !Ref JWTSecret
+            - Name: GOOGLE_CLIENT_ID
+              Value: !Ref GoogleClientId
+            - Name: FRONTEND_URL
+              Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref BackendLogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: backend
+          HealthCheck:
+            Command: ["CMD-SHELL", "wget -qO- http://localhost:5001/api/health || exit 1"]
+            Interval: 30
+            Timeout: 10
+            Retries: 3
+            StartPeriod: 30
+
+  # ECS Service: Backend
+  BackendECSService:
+    Type: AWS::ECS::Service
+    DependsOn: BackendALBListener
+    Properties:
+      ServiceName: !Sub "${ProjectName}-backend-service"
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref BackendTaskDefinition
+      DesiredCount: !If [IsProduction, 2, 1]
+      LaunchType: FARGATE
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          SecurityGroups:
+            - !Ref ECSSecurityGroup
+          Subnets:
+            - !Ref PrivateSubnet1
+            - !Ref PrivateSubnet2
+      LoadBalancers:
+        - ContainerName: backend
+          ContainerPort: 5001
+          TargetGroupArn: !Ref BackendTargetGroup
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+        DeploymentCircuitBreaker:
+          Enable: true
+          Rollback: true
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  # ============================================================
+  # APPLICATION LOAD BALANCER - Para el backend
+  # ============================================================
+  BackendALB:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "${ProjectName}-alb"
+      Type: application
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBSecurityGroup
+      Subnets:
+        - !Ref PublicSubnet1
+        - !Ref PublicSubnet2
+      Tags:
+        - Key: Project
+          Value: !Ref ProjectName
+
+  BackendTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "${ProjectName}-backend-tg"
+      Port: 5001
+      Protocol: HTTP
+      VpcId: !Ref GoodMatesVPC
+      TargetType: ip
+      HealthCheckPath: /api/health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+
+  BackendALBListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref BackendALB
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref BackendTargetGroup
+
+# ── Outputs - Valores exportados ────────────────────────────
+Outputs:
+
+  CloudFrontURL:
+    Description: "URL publica de la aplicacion via CloudFront (HTTPS)"
+    Value: !Sub "https://${CloudFrontDistribution.DomainName}"
+    Export:
+      Name: !Sub "${ProjectName}-cloudfront-url"
+
+  CloudFrontDistributionId:
+    Description: "ID de la distribucion CloudFront (necesario para invalidaciones)"
+    Value: !Ref CloudFrontDistribution
+    Export:
+      Name: !Sub "${ProjectName}-cloudfront-id"
+
+  BackendALBDNS:
+    Description: "DNS del Application Load Balancer (backend interno)"
+    Value: !GetAtt BackendALB.DNSName
+    Export:
+      Name: !Sub "${ProjectName}-alb-dns"
+
+  FrontendBucketName:
+    Description: "Nombre del bucket S3 donde se sube el build de React"
+    Value: !Ref FrontendBucket
+    Export:
+      Name: !Sub "${ProjectName}-frontend-bucket"
+
+  UploadsBucketName:
+    Description: "Nombre del bucket S3 para las imagenes de propiedades"
+    Value: !Ref UploadsBucket
+    Export:
+      Name: !Sub "${ProjectName}-uploads-bucket"
+
+  RDSEndpoint:
+    Description: "Endpoint de la base de datos RDS MySQL"
+    Value: !GetAtt RDSInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${ProjectName}-rds-endpoint"
+
+  ECSClusterName:
+    Description: "Nombre del cluster ECS"
+    Value: !Ref ECSCluster
+    Export:
+      Name: !Sub "${ProjectName}-ecs-cluster"

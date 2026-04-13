@@ -1,0 +1,40 @@
+# ============================================================
+# Dockerfile - Backend GoodMates (Node.js / Express)
+# Multi-stage build para imagen de produccion optimizada
+# ============================================================
+
+# ------- Etapa 1: Dependencias -------
+FROM node:20-alpine AS deps
+WORKDIR /app
+
+# Copiar solo manifiestos para aprovechar cache de Docker
+COPY backend/package*.json ./
+RUN npm ci --only=production
+
+# ------- Etapa 2: Imagen de produccion -------
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+# Variables de entorno por defecto (sobreescribitas en ECS/docker-compose)
+ENV NODE_ENV=production \
+    PORT=5001
+
+# Usuario no root por seguridad
+RUN addgroup -S goodmates && adduser -S goodmates -G goodmates
+
+# Copiar dependencias instaladas y codigo fuente
+COPY --from=deps /app/node_modules ./node_modules
+COPY backend/src ./src
+COPY backend/package.json ./package.json
+
+# Carpeta de uploads con permisos correctos
+RUN mkdir -p /app/uploads && chown -R goodmates:goodmates /app
+
+USER goodmates
+
+EXPOSE 5001
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget -qO- http://localhost:5001/api/health || exit 1
+
+CMD ["node", "src/server.js"]

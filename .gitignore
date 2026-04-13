@@ -25,3 +25,33 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# ── AWS / Infraestructura ────────────────────────────────────
+# Variables de entorno Docker con valores reales
+.env.docker.local
+.env.production
+
+# Credenciales y secretos AWS (nunca commitear)
+*.pem
+*.key
+aws-exports.js
+.aws/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+.Python
+
+# Terraform (si lo usas en el futuro)
+*.tfstate
+*.tfstate.backup
+.terraform/
+*.tfvars
+
+# Build artifacts de Docker
+*.tar

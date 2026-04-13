@@ -1,0 +1,98 @@
+# ============================================================
+# docker-compose.yml - GoodMates
+# Stack completo: Frontend (React/Nginx) + Backend (Node.js) + MySQL
+# Uso local: docker-compose up --build
+# ============================================================
+
+version: "3.9"
+
+services:
+
+  # ── Base de datos MySQL ─────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: goodmates-db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-goodmates_root}
+      MYSQL_DATABASE: ${DB_NAME:-goodmates}
+      MYSQL_USER: ${DB_USER:-goodmates_user}
+      MYSQL_PASSWORD: ${DB_PASSWORD:-goodmates_root}
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_PASSWORD:-goodmates_root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - goodmates-network
+
+  # ── Backend Node.js / Express ───────────────────────────────
+  backend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.backend
+    container_name: goodmates-backend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 5001
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-goodmates_user}
+      DB_PASSWORD: ${DB_PASSWORD:-goodmates_root}
+      DB_NAME: ${DB_NAME:-goodmates}
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+    ports:
+      - "5001:5001"
+    volumes:
+      - uploads_data:/app/uploads
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:5001/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - goodmates-network
+
+  # ── Frontend React + Nginx ──────────────────────────────────
+  frontend:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.frontend
+    container_name: goodmates-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - goodmates-network
+
+# ── Volumes ─────────────────────────────────────────────────
+volumes:
+  db_data:
+    driver: local
+  uploads_data:
+    driver: local
+
+# ── Redes ───────────────────────────────────────────────────
+networks:
+  goodmates-network:
+    driver: bridge

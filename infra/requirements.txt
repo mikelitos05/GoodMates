@@ -1,0 +1,7 @@
+# Dependencias del script de gestion de AWS (aws_manager.py)
+# Instalar con: pip install -r infra/requirements.txt
+
+boto3==1.34.160
+click==8.1.7
+rich==13.7.1
+botocore==1.34.160
