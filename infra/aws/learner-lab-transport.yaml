@@ -1,0 +1,537 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "Caso transporte - AWS Learner Lab con VPC, EC2, S3, DynamoDB, RDS, Lambda y CloudWatch."
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: transporte-lab
+    AllowedPattern: "^[a-z0-9-]+$"
+  Environment:
+    Type: String
+    Default: demo
+    AllowedValues: [demo, dev, test]
+  ExistingInstanceProfile:
+    Type: String
+    Default: LabInstanceProfile
+    Description: "Instance profile existente del Learner Lab asociado a LabRole."
+  LambdaRoleArn:
+    Type: String
+    Default: ""
+    Description: "ARN de un rol que pueda ser asumido por Lambda. Dejar vacio si el laboratorio no lo permite."
+  CreateLambda:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+  InstanceType:
+    Type: String
+    Default: t3.micro
+    AllowedValues: [t2.nano, t2.micro, t2.small, t2.medium, t2.large, t3.nano, t3.micro, t3.small, t3.medium, t3.large]
+  AmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64
+  CreateNatGateway:
+    Type: String
+    Default: "false"
+    AllowedValues: ["true", "false"]
+    Description: "true crea NAT Gateway. Tiene costo; usar solo si se requiere evidencia."
+  CreateRds:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+  DBInstanceClass:
+    Type: String
+    Default: db.t3.micro
+    AllowedValues: [db.t3.micro, db.t3.small, db.t3.medium, db.t4g.micro, db.t4g.small, db.t4g.medium]
+  DBAllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+  DBName:
+    Type: String
+    Default: transportdb
+    AllowedPattern: "^[A-Za-z][A-Za-z0-9_]{0,63}$"
+  DBUsername:
+    Type: String
+    Default: transportadmin
+    AllowedPattern: "^[A-Za-z][A-Za-z0-9]{0,15}$"
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 12
+    MaxLength: 41
+    AllowedPattern: "^[A-Za-z0-9]+$"
+  AllowedHttpCidr:
+    Type: String
+    Default: 0.0.0.0/0
+
+Conditions:
+  ShouldCreateNat: !Equals [!Ref CreateNatGateway, "true"]
+  ShouldCreateRds: !Equals [!Ref CreateRds, "true"]
+  HasLambdaRoleArn: !Not [!Equals [!Ref LambdaRoleArn, ""]]
+  ShouldCreateLambda: !And [!Equals [!Ref CreateLambda, "true"], !Condition HasLambdaRoleArn]
+
+Resources:
+  TransportVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.40.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-vpc"
+        - Key: Project
+          Value: !Ref ProjectName
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-igw"
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref TransportVPC
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TransportVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.40.1.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-public-a"
+        - Key: Tier
+          Value: public
+
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TransportVPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.40.2.0/24
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-public-b"
+        - Key: Tier
+          Value: public
+
+  PrivateSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TransportVPC
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      CidrBlock: 10.40.11.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-private-a"
+        - Key: Tier
+          Value: private
+
+  PrivateSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref TransportVPC
+      AvailabilityZone: !Select [1, !GetAZs ""]
+      CidrBlock: 10.40.12.0/24
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-private-b"
+        - Key: Tier
+          Value: private
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref TransportVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-public-rt"
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetA
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnetB
+      RouteTableId: !Ref PublicRouteTable
+
+  NatGatewayEip:
+    Type: AWS::EC2::EIP
+    Condition: ShouldCreateNat
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-nat-eip"
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Condition: ShouldCreateNat
+    Properties:
+      AllocationId: !GetAtt NatGatewayEip.AllocationId
+      SubnetId: !Ref PublicSubnetA
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-nat"
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Condition: ShouldCreateNat
+    Properties:
+      VpcId: !Ref TransportVPC
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-private-rt"
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Condition: ShouldCreateNat
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetARouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ShouldCreateNat
+    Properties:
+      SubnetId: !Ref PrivateSubnetA
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnetBRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Condition: ShouldCreateNat
+    Properties:
+      SubnetId: !Ref PrivateSubnetB
+      RouteTableId: !Ref PrivateRouteTable
+
+  WebSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "HTTP publico y administracion por Session Manager; sin SSH."
+      VpcId: !Ref TransportVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: !Ref AllowedHttpCidr
+          Description: "Sitio demo HTTP"
+        - IpProtocol: tcp
+          FromPort: 5001
+          ToPort: 5001
+          CidrIp: !Ref AllowedHttpCidr
+          Description: "GoodMates API Node.js"
+      SecurityGroupEgress:
+        - IpProtocol: -1
+          CidrIp: 0.0.0.0/0
+          Description: "Salida a internet y APIs AWS"
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-web-sg"
+
+  DatabaseSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "MySQL solo desde EC2."
+      VpcId: !Ref TransportVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref WebSecurityGroup
+          Description: "MySQL desde EC2"
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-db-sg"
+
+  StaticAssetsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-${Environment}-assets-${AWS::AccountId}-${AWS::Region}"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireEvidenceAfter30Days
+            Status: Enabled
+            ExpirationInDays: 30
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-assets"
+
+  ShipmentsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ProjectName}-${Environment}-shipments"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: shipmentId
+          AttributeType: S
+        - AttributeName: eventTimestamp
+          AttributeType: S
+      KeySchema:
+        - AttributeName: shipmentId
+          KeyType: HASH
+        - AttributeName: eventTimestamp
+          KeyType: RANGE
+      SSESpecification:
+        SSEEnabled: true
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-shipments"
+
+  WebInstance:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: !Ref AmiId
+      InstanceType: !Ref InstanceType
+      IamInstanceProfile: !Ref ExistingInstanceProfile
+      SubnetId: !Ref PublicSubnetA
+      SecurityGroupIds: [!Ref WebSecurityGroup]
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: 8
+            Encrypted: true
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          set -euxo pipefail
+          dnf update -y
+          dnf install -y httpd amazon-ssm-agent
+          systemctl enable --now amazon-ssm-agent
+          systemctl enable --now httpd
+          cat > /var/www/html/index.html <<'HTML'
+          <!doctype html>
+          <html lang="es">
+          <head>
+            <meta charset="utf-8">
+            <title>${ProjectName} - AWS Learner Lab</title>
+            <style>
+              body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
+              main { max-width: 860px; }
+              code { background: #eef2f7; padding: 2px 6px; border-radius: 4px; }
+            </style>
+          </head>
+          <body>
+            <main>
+              <h1>Empresa de transporte - migracion a AWS</h1>
+              <p>Servidor EC2 desplegado con CloudFormation en ${AWS::Region}.</p>
+              <ul>
+                <li>Acceso administrativo por AWS Systems Manager Session Manager.</li>
+                <li>Archivos en S3: <code>${StaticAssetsBucket}</code>.</li>
+                <li>Eventos operativos en DynamoDB: <code>${ShipmentsTable}</code>.</li>
+                <li>Monitoreo con CloudWatch y alarma de CPU.</li>
+              </ul>
+            </main>
+          </body>
+          </html>
+          HTML
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-web"
+        - Key: Project
+          Value: !Ref ProjectName
+
+  DatabaseSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Condition: ShouldCreateRds
+    Properties:
+      DBSubnetGroupDescription: "Subredes privadas para RDS"
+      SubnetIds: [!Ref PrivateSubnetA, !Ref PrivateSubnetB]
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-db-subnets"
+
+  RelationalDatabase:
+    Type: AWS::RDS::DBInstance
+    Condition: ShouldCreateRds
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub "${ProjectName}-${Environment}-mysql"
+      DBName: !Ref DBName
+      Engine: mysql
+      DBInstanceClass: !Ref DBInstanceClass
+      AllocatedStorage: !Ref DBAllocatedStorage
+      StorageType: gp3
+      StorageEncrypted: true
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBSubnetGroupName: !Ref DatabaseSubnetGroup
+      VPCSecurityGroups: [!Ref DatabaseSecurityGroup]
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 1
+      DeletionProtection: false
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-mysql"
+
+  TransportEventsFunctionLogGroup:
+    Type: AWS::Logs::LogGroup
+    Condition: ShouldCreateLambda
+    Properties:
+      LogGroupName: !Sub "/aws/lambda/${ProjectName}-${Environment}-events"
+      RetentionInDays: 7
+
+  TransportEventsFunction:
+    Type: AWS::Lambda::Function
+    Condition: ShouldCreateLambda
+    Properties:
+      FunctionName: !Sub "${ProjectName}-${Environment}-events"
+      Description: "Ejemplo serverless: registra eventos de envios en DynamoDB."
+      Runtime: python3.12
+      Handler: index.handler
+      Role: !Ref LambdaRoleArn
+      Timeout: 10
+      MemorySize: 128
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref ShipmentsTable
+      Code:
+        ZipFile: |
+          import datetime
+          import json
+          import os
+          import uuid
+          import boto3
+
+          dynamodb = boto3.resource("dynamodb")
+          table = dynamodb.Table(os.environ["TABLE_NAME"])
+
+          def handler(event, context):
+              body = event if isinstance(event, dict) else {}
+              item = {
+                  "shipmentId": body.get("shipmentId", str(uuid.uuid4())),
+                  "eventTimestamp": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                  "status": body.get("status", "CREATED"),
+                  "source": "lambda-demo"
+              }
+              table.put_item(Item=item)
+              return {"statusCode": 200, "body": json.dumps(item)}
+      Tags:
+        - Key: Name
+          Value: !Sub "${ProjectName}-${Environment}-events"
+
+  WebCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "${ProjectName}-${Environment}-ec2-cpu-high"
+      AlarmDescription: "Alarma si EC2 supera 70% CPU."
+      Namespace: AWS/EC2
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: InstanceId
+          Value: !Ref WebInstance
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 70
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  OperationsDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "${ProjectName}-${Environment}-ops"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "region": "${AWS::Region}",
+                "title": "EC2 CPU",
+                "metrics": [["AWS/EC2", "CPUUtilization", "InstanceId", "${WebInstance}"]],
+                "stat": "Average",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "region": "${AWS::Region}",
+                "title": "DynamoDB requests",
+                "metrics": [
+                  ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${ShipmentsTable}"],
+                  [".", "ConsumedWriteCapacityUnits", ".", "."]
+                ],
+                "stat": "Sum",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+Outputs:
+  Region:
+    Value: !Ref AWS::Region
+  VpcId:
+    Value: !Ref TransportVPC
+  PublicSubnets:
+    Value: !Join [",", [!Ref PublicSubnetA, !Ref PublicSubnetB]]
+  PrivateSubnets:
+    Value: !Join [",", [!Ref PrivateSubnetA, !Ref PrivateSubnetB]]
+  WebInstanceId:
+    Description: "Usar con Session Manager, no SSH."
+    Value: !Ref WebInstance
+  WebUrl:
+    Value: !Sub "http://${WebInstance.PublicDnsName}"
+  SessionManagerCommand:
+    Value: !Sub "aws ssm start-session --target ${WebInstance} --region ${AWS::Region}"
+  StaticAssetsBucketName:
+    Value: !Ref StaticAssetsBucket
+  DynamoTableName:
+    Value: !Ref ShipmentsTable
+  LambdaFunctionName:
+    Condition: ShouldCreateLambda
+    Value: !Ref TransportEventsFunction
+  RdsEndpoint:
+    Condition: ShouldCreateRds
+    Value: !GetAtt RelationalDatabase.Endpoint.Address
+  CloudWatchDashboard:
+    Value: !Ref OperationsDashboard
