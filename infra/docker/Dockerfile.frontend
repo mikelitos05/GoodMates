@@ -9,7 +9,10 @@ WORKDIR /app
 
 # Copiar manifiestos e instalar dependencias
 COPY frontend/package*.json ./
-RUN npm ci
+# npm 10 en entornos limpios puede rechazar este lockfile por una resolucion
+# transitiva opcional de yaml/tailwindcss. npm install mantiene el lock y evita
+# que el build falle en AWS Lab Learner.
+RUN npm install --no-audit --no-fund
 
 # Copiar codigo fuente y construir bundle de produccion
 COPY frontend/ ./

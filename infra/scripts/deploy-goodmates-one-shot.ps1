@@ -14,6 +14,9 @@ param(
     [string]$DbName = "goodmates",
     [string]$DbUser = "goodmates_user",
     [string]$DbPassword = "GoodMatesLab2026",
+    [string]$DbRootPassword = "",
+    [string]$JwtSecret = "",
+    [string]$GoogleClientId = "",
     [int]$BackendPort = 5001,
 
     [switch]$NoUploads,
@@ -26,6 +29,9 @@ $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $InfraScript = Join-Path $Root "infra\scripts\deploy-transport-lab.ps1"
 $BackendDir = Join-Path $Root "backend"
 $FrontendDir = Join-Path $Root "frontend"
+$DockerDir = Join-Path $Root "infra\docker"
+$ComposeFile = Join-Path $Root "docker-compose.yml"
+$AwsComposeFile = Join-Path $DockerDir "docker-compose.aws.yml"
 
 function Write-Step {
     param([string]$Message)
@@ -87,39 +93,6 @@ function Invoke-AwsText {
     }
 
     return $stdout.Trim()
-}
-
-function Invoke-LoggedNative {
-    param(
-        [string]$FilePath,
-        [string[]]$Arguments,
-        [string]$WorkingDirectory = ""
-    )
-
-    $hasNativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
-    $oldNativePreference = $null
-    if ($hasNativePreference) {
-        $oldNativePreference = $PSNativeCommandUseErrorActionPreference
-        $script:PSNativeCommandUseErrorActionPreference = $false
-    }
-
-    $oldLocation = Get-Location
-    try {
-        if ($WorkingDirectory) {
-            Set-Location $WorkingDirectory
-        }
-
-        & $FilePath @Arguments 2>&1 | ForEach-Object { Write-Host $_ }
-        if ($LASTEXITCODE -ne 0) {
-            throw "El comando '$FilePath $($Arguments -join ' ')' fallo con codigo $LASTEXITCODE."
-        }
-    }
-    finally {
-        Set-Location $oldLocation
-        if ($hasNativePreference) {
-            $script:PSNativeCommandUseErrorActionPreference = $oldNativePreference
-        }
-    }
 }
 
 function Get-StackStatus {
@@ -185,6 +158,25 @@ function Wait-SsmCommand {
     return $result
 }
 
+function New-RandomSecret {
+    param([int]$Length = 48)
+
+    $chars = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789".ToCharArray()
+    $random = 1..$Length | ForEach-Object { $chars | Get-Random }
+    return -join $random
+}
+
+function Copy-IfExists {
+    param(
+        [string]$Source,
+        [string]$Destination
+    )
+
+    if (Test-Path $Source) {
+        Copy-Item $Source -Destination $Destination -Recurse -Force
+    }
+}
+
 function Deploy-Infrastructure {
     Require-Command aws
 
@@ -208,7 +200,7 @@ function Deploy-Infrastructure {
         aws cloudformation wait stack-delete-complete --stack-name $StackName --region $Region
     }
 
-    Write-Step "Desplegando infraestructura base sin RDS"
+    Write-Step "Desplegando infraestructura base compatible con AWS Lab Learner"
     & $InfraScript `
         -Action deploy `
         -Region $Region `
@@ -219,46 +211,43 @@ function Deploy-Infrastructure {
 }
 
 function Build-Package {
-    Require-Command npm
     Require-Command tar
 
-    if (-not (Test-Path $BackendDir)) {
-        throw "No existe backend: $BackendDir"
-    }
-    if (-not (Test-Path $FrontendDir)) {
-        throw "No existe frontend: $FrontendDir"
-    }
-
-    Write-Step "Compilando frontend React"
-    $oldNodeOptions = $env:NODE_OPTIONS
-    try {
-        $env:NODE_OPTIONS = "--no-deprecation"
-        Invoke-LoggedNative -FilePath "cmd.exe" -Arguments @("/c", "npm run build 2>&1") -WorkingDirectory $FrontendDir
-    }
-    finally {
-        $env:NODE_OPTIONS = $oldNodeOptions
+    foreach ($path in @($BackendDir, $FrontendDir, $DockerDir, $ComposeFile, $AwsComposeFile)) {
+        if (-not (Test-Path $path)) {
+            throw "Falta un archivo o directorio requerido para Docker: $path"
+        }
     }
 
-    Write-Step "Empaquetando frontend y backend"
-    $stage = Join-Path $env:TEMP "goodmates-one-shot-package"
-    $archive = Join-Path $env:TEMP "goodmates-deploy.tar.gz"
+    Write-Step "Preparando paquete Docker de GoodMates"
+    $stage = Join-Path $env:TEMP "goodmates-docker-package"
+    $archive = Join-Path $env:TEMP "goodmates-docker-deploy.tar.gz"
 
     if (Test-Path $stage) { Remove-Item -Recurse -Force $stage }
     if (Test-Path $archive) { Remove-Item -Force $archive }
 
-    New-Item -ItemType Directory -Force -Path "$stage\backend", "$stage\frontend" | Out-Null
+    New-Item -ItemType Directory -Force -Path `
+        "$stage\backend", `
+        "$stage\frontend", `
+        "$stage\infra", `
+        "$stage\infra\docker" | Out-Null
+
+    Copy-Item $ComposeFile -Destination "$stage\docker-compose.yml"
+    Copy-IfExists -Source (Join-Path $Root ".dockerignore") -Destination "$stage\.dockerignore"
 
     Copy-Item "$BackendDir\package.json", "$BackendDir\package-lock.json" -Destination "$stage\backend"
     Copy-Item "$BackendDir\src" -Destination "$stage\backend\src" -Recurse
-
-    $uploads = Join-Path $BackendDir "uploads"
-    if ((-not $NoUploads.IsPresent) -and (Test-Path $uploads)) {
-        Copy-Item $uploads -Destination "$stage\backend\uploads" -Recurse
+    if (-not $NoUploads.IsPresent) {
+        Copy-IfExists -Source "$BackendDir\uploads" -Destination "$stage\backend\uploads"
     }
 
-    Copy-Item "$FrontendDir\build" -Destination "$stage\frontend\build" -Recurse
+    Copy-Item "$FrontendDir\package.json", "$FrontendDir\package-lock.json" -Destination "$stage\frontend"
+    Copy-Item "$FrontendDir\public" -Destination "$stage\frontend\public" -Recurse
+    Copy-Item "$FrontendDir\src" -Destination "$stage\frontend\src" -Recurse
 
-    Invoke-LoggedNative -FilePath "tar" -Arguments @("-czf", $archive, "-C", $stage, ".")
+    Copy-Item "$DockerDir\Dockerfile.backend", "$DockerDir\Dockerfile.frontend", "$DockerDir\nginx.conf", "$AwsComposeFile" -Destination "$stage\infra\docker"
+
+    tar -czf $archive -C $stage .
 
     if (-not (Test-Path $archive)) {
         throw "No se genero el paquete: $archive"
@@ -279,7 +268,9 @@ function Deploy-Application {
     }
 
     $archive = Build-Package
-    $s3Key = "deploy/goodmates-deploy.tar.gz"
+    $s3Key = "deploy/goodmates-docker-deploy.tar.gz"
+    $effectiveDbRootPassword = if ($DbRootPassword) { $DbRootPassword } else { $DbPassword }
+    $effectiveJwtSecret = if ($JwtSecret) { $JwtSecret } else { New-RandomSecret }
 
     Write-Step "Subiendo paquete a S3"
     aws s3 cp $archive "s3://$bucket/$s3Key" --region $Region
@@ -289,55 +280,50 @@ function Deploy-Application {
 
     $commands = @(
         "set -euxo pipefail",
-        "sudo dnf install -y tar unzip jq httpd mariadb105-server",
-        "if ! command -v node >/dev/null 2>&1; then curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash - && sudo dnf install -y nodejs; fi",
-        "if ! command -v pm2 >/dev/null 2>&1; then sudo npm install -g pm2; fi",
-        "sudo systemctl enable --now httpd",
-        "sudo systemctl enable --now mariadb",
-        "sudo mysql -e `"CREATE DATABASE IF NOT EXISTS $DbName CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`"",
-        "sudo mysql -e `"CREATE USER IF NOT EXISTS '$DbUser'@'localhost' IDENTIFIED BY '$DbPassword';`"",
-        "sudo mysql -e `"GRANT ALL PRIVILEGES ON $DbName.* TO '$DbUser'@'localhost'; FLUSH PRIVILEGES;`"",
+        "sudo systemctl disable --now httpd || true",
+        "if ! command -v docker >/dev/null 2>&1; then sudo dnf install -y docker; fi",
+        "sudo systemctl enable --now docker",
+        "if ! docker compose version >/dev/null 2>&1; then sudo dnf install -y docker-compose-plugin || true; fi",
+        "if ! docker compose version >/dev/null 2>&1; then sudo mkdir -p /usr/local/lib/docker/cli-plugins && sudo curl -fsSL https://github.com/docker/compose/releases/download/v2.27.2/docker-compose-linux-x86_64 -o /usr/local/lib/docker/cli-plugins/docker-compose && sudo chmod +x /usr/local/lib/docker/cli-plugins/docker-compose; fi",
+        "docker compose version",
         "sudo rm -rf /opt/goodmates /tmp/goodmates-deploy /tmp/goodmates-deploy.tar.gz",
         "curl -fL '$presignedUrl' -o /tmp/goodmates-deploy.tar.gz",
         "sudo mkdir -p /opt/goodmates /tmp/goodmates-deploy",
         "sudo tar -xzf /tmp/goodmates-deploy.tar.gz -C /tmp/goodmates-deploy",
-        "sudo cp -R /tmp/goodmates-deploy/backend /opt/goodmates/backend",
-        "sudo rm -rf /var/www/html/*",
-        "sudo cp -R /tmp/goodmates-deploy/frontend/build/* /var/www/html/",
-        "sudo bash -c `"cat > /opt/goodmates/backend/.env`" <<'EOF'",
-        "PORT=$BackendPort",
-        "NODE_ENV=production",
-        "DB_HOST=localhost",
+        "sudo cp -R /tmp/goodmates-deploy/. /opt/goodmates/",
+        "sudo bash -c `"cat > /opt/goodmates/.env.aws`" <<'EOF'",
+        "DB_HOST=db",
+        "BACKEND_PORT=$BackendPort",
         "DB_PORT=3306",
+        "DB_NAME=$DbName",
         "DB_USER=$DbUser",
         "DB_PASSWORD=$DbPassword",
-        "DB_NAME=$DbName",
-        "JWT_SECRET=goodmates_lab_jwt_secret_2026_change_me",
+        "DB_ROOT_PASSWORD=$effectiveDbRootPassword",
+        "JWT_SECRET=$effectiveJwtSecret",
+        "GOOGLE_CLIENT_ID=$GoogleClientId",
         "FRONTEND_URL=$webUrl",
         "EOF",
-        "cd /opt/goodmates/backend && sudo npm ci --omit=dev",
-        "sudo chown -R ec2-user:ec2-user /opt/goodmates",
-        "pm2 delete goodmates-backend || true",
-        "cd /opt/goodmates/backend && pm2 start src/server.js --name goodmates-backend",
-        "pm2 save",
-        "sudo find /var/www/html -type d -exec chmod 755 {} \;",
-        "sudo find /var/www/html -type f -exec chmod 644 {} \;",
-        "sudo restorecon -R /var/www/html || true",
-        "sleep 5",
-        "curl -fsS http://localhost:$BackendPort/api/health",
+        "cd /opt/goodmates",
+        "COMPOSE_ARGS='-f infra/docker/docker-compose.aws.yml --env-file .env.aws'",
+        "trap 'cd /opt/goodmates && sudo docker compose `$COMPOSE_ARGS ps && sudo docker compose `$COMPOSE_ARGS logs --no-color --tail=200 || true' ERR",
+        "sudo docker compose `$COMPOSE_ARGS build --pull",
+        "sudo docker compose `$COMPOSE_ARGS up -d --remove-orphans",
+        "sudo docker compose `$COMPOSE_ARGS ps",
+        "for i in `$(seq 1 30); do if curl -fsS http://localhost/api/health >/dev/null; then break; fi; sleep 10; done",
+        "curl -fsS http://localhost/api/health",
         "curl -I http://localhost/"
     )
 
     $paramsPath = Join-Path $env:TEMP "goodmates-ssm-params.json"
     @{ commands = $commands } | ConvertTo-Json -Depth 6 | Set-Content -Path $paramsPath -Encoding ascii
 
-    Write-Step "Instalando GoodMates en EC2 por SSM"
+    Write-Step "Levantando GoodMates con Docker Compose en EC2 por SSM"
     $commandId = aws ssm send-command `
         --region $Region `
         --instance-ids $instanceId `
         --document-name AWS-RunShellScript `
         --parameters "file://$paramsPath" `
-        --comment "GoodMates one-shot deploy" `
+        --comment "GoodMates docker deploy" `
         --query "Command.CommandId" `
         --output text
 
@@ -350,12 +336,12 @@ function Deploy-Application {
 
     Write-Step "Validando URL publica"
     Invoke-WebRequest -Uri $webUrl -UseBasicParsing -TimeoutSec 30 | Select-Object StatusCode
-    Invoke-WebRequest -Uri "$webUrl`:$BackendPort/api/health" -UseBasicParsing -TimeoutSec 30 | Select-Object -ExpandProperty Content
+    Invoke-WebRequest -Uri "$webUrl/api/health" -UseBasicParsing -TimeoutSec 30 | Select-Object -ExpandProperty Content
 
     Write-Host ""
-    Write-Host "GoodMates desplegado:" -ForegroundColor Green
+    Write-Host "GoodMates desplegado con Docker:" -ForegroundColor Green
     Write-Host "Frontend: $webUrl"
-    Write-Host "Backend:  $webUrl`:$BackendPort/api/health"
+    Write-Host "Backend:  $webUrl/api/health"
 }
 
 function Test-GoodMates {
@@ -367,8 +353,8 @@ function Test-GoodMates {
     Write-Step "Probando frontend"
     Invoke-WebRequest -Uri $webUrl -UseBasicParsing -TimeoutSec 30 | Select-Object StatusCode
 
-    Write-Step "Probando backend"
-    Invoke-WebRequest -Uri "$webUrl`:$BackendPort/api/health" -UseBasicParsing -TimeoutSec 30 | Select-Object -ExpandProperty Content
+    Write-Step "Probando backend via proxy Docker/Nginx"
+    Invoke-WebRequest -Uri "$webUrl/api/health" -UseBasicParsing -TimeoutSec 30 | Select-Object -ExpandProperty Content
 
     Write-Step "Probando JS principal"
     $html = Invoke-WebRequest -Uri $webUrl -UseBasicParsing -TimeoutSec 30

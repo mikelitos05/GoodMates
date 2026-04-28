@@ -2,10 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { io } from 'socket.io-client';
 import { useAuth } from '../contexts/AuthContext';
-import { getChatMessages, getMatchChatMessages, sendChatMessage, sendMatchChatMessage } from '../services/api';
+import { SOCKET_URL, getChatMessages, getMatchChatMessages, sendChatMessage, sendMatchChatMessage } from '../services/api';
 import './ChatPage.css';
-
-const BACKEND_URL = `http://${window.location.hostname}:5001`;
 
 function ChatPage({ mode = 'inquiry' }) {
     const { idSolicitud, idMatch } = useParams();
@@ -47,7 +45,9 @@ function ChatPage({ mode = 'inquiry' }) {
 
     // Socket.io for real-time
     useEffect(() => {
-        const socket = io(BACKEND_URL);
+        const socket = SOCKET_URL
+            ? io(SOCKET_URL, { path: '/socket.io' })
+            : io({ path: '/socket.io' });
         socketRef.current = socket;
 
         socket.on('connect', () => {

@@ -1,13 +1,19 @@
-// Use the current browser hostname so the app works from any device on the same network
-// e.g. from PC: http://localhost:5001/api  |  from phone: http://192.168.1.X:5001/api
-const BACKEND_URL = `http://${window.location.hostname}:5001`;
-const API_URL = `${BACKEND_URL}/api`;
+// En Docker/Nginx usamos mismo origen; en CRA local seguimos apuntando al backend :5001.
+const configuredApiBaseUrl = (process.env.REACT_APP_API_BASE_URL || '').trim().replace(/\/$/, '');
+const defaultApiBaseUrl = window.location.port === '3000'
+    ? `http://${window.location.hostname}:5001`
+    : window.location.origin;
+
+export const API_BASE_URL = configuredApiBaseUrl || defaultApiBaseUrl;
+export const SOCKET_URL = API_BASE_URL === window.location.origin ? null : API_BASE_URL;
+
+const API_URL = `${API_BASE_URL}/api`;
 
 // Helper: build full URL for images stored on the backend
 export const getImageUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) return path;
-    return `${BACKEND_URL}${path}`;  // e.g. /uploads/propiedades/123.jpg → http://192.168.1.X:5001/uploads/propiedades/123.jpg
+    return new URL(path, `${API_BASE_URL}/`).toString();
 };
 
 // -- FUNCIONES AUXILIARES --

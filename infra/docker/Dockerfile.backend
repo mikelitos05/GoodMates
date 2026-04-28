@@ -25,6 +25,7 @@ RUN addgroup -S goodmates && adduser -S goodmates -G goodmates
 # Copiar dependencias instaladas y codigo fuente
 COPY --from=deps /app/node_modules ./node_modules
 COPY backend/src ./src
+COPY backend/uploads ./uploads
 COPY backend/package.json ./package.json
 
 # Carpeta de uploads con permisos correctos

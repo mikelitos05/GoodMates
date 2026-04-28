@@ -1,87 +1,76 @@
 # GoodMates
 
-GoodMates es una aplicación web para gestión de roommates, propiedades, perfiles, solicitudes, grupos de convivencia, tareas, tablero compartido y chat. El proyecto está dividido en un frontend React y un backend Node.js/Express con base de datos MySQL/MariaDB.
+GoodMates es una aplicacion web para roommates, propiedades, solicitudes, grupos de convivencia, tareas, board compartido y chat en tiempo real. El proyecto tiene frontend React, backend Node.js/Express y base de datos MySQL.
 
-Este README se enfoca principalmente en el despliegue de GoodMates en AWS.
+Este README se enfoca en el despliegue de GoodMates con Docker, incluyendo el flujo para AWS Lab Learner.
 
-## Arquitectura del Proyecto
+## Estructura
 
 ```text
 GoodMates/
-├── backend/                  # API Node.js / Express
-│   ├── src/
-│   │   ├── server.js
-│   │   ├── config/
-│   │   ├── routes/
-│   │   ├── services/
-│   │   ├── middleware/
-│   │   └── utils/
-│   ├── uploads/
-│   ├── package.json
-│   └── package-lock.json
-├── frontend/                 # Aplicación React
-│   ├── public/
-│   ├── src/
-│   ├── package.json
-│   └── package-lock.json
+├── backend/
+├── frontend/
 ├── infra/
 │   ├── aws/
 │   │   └── goodmates-aws-base.yaml
 │   ├── docker/
 │   │   ├── Dockerfile.backend
 │   │   ├── Dockerfile.frontend
+│   │   ├── docker-compose.aws.yml
 │   │   └── nginx.conf
 │   └── scripts/
 │       ├── deploy-goodmates-one-shot.ps1
 │       └── deploy-transport-lab.ps1
 ├── docker-compose.yml
+├── .dockerignore
 └── .env.docker
 ```
 
-## Componentes Principales
+## Arquitectura de despliegue
 
-| Componente | Tecnología | Función |
-|---|---|---|
-| Frontend | React | Interfaz web de GoodMates. |
-| Backend | Node.js + Express | API REST, autenticación, lógica de negocio y Socket.io. |
-| Base de datos | MySQL/MariaDB | Persistencia de usuarios, propiedades, grupos, tareas y mensajes. |
-| Servidor web | Apache en EC2 | Sirve el build estático del frontend. |
-| Process manager | PM2 | Mantiene activo el backend en EC2. |
-| Infraestructura | CloudFormation | Crea VPC, EC2, S3, DynamoDB, CloudWatch y Security Groups. |
-| Acceso administrativo | AWS Systems Manager | Permite administrar EC2 sin SSH. |
+### Local y Docker
 
-## Despliegue en AWS
+- `db`: MySQL 8 en contenedor.
+- `backend`: API Node.js/Express en contenedor.
+- `frontend`: Nginx en contenedor sirviendo React y haciendo proxy a `/api`, `/socket.io` y `/uploads`.
 
-El despliegue recomendado se hace con el script:
+### AWS Lab Learner
 
-```text
-infra/scripts/deploy-goodmates-one-shot.ps1
-```
+El despliegue en AWS usa una sola EC2 administrada por Systems Manager. Dentro de esa instancia se levanta todo con `docker compose`:
 
-Este script automatiza todo el proceso:
+- `frontend` en el puerto `80`
+- `backend` solo en la red interna de Docker
+- `db` solo en la red interna de Docker
 
-1. Crea o actualiza la infraestructura base en AWS.
-2. Compila el frontend React.
-3. Empaqueta frontend y backend.
-4. Sube el paquete a S3.
-5. Descarga el paquete desde EC2 mediante una URL prefirmada.
-6. Instala Node.js, Apache, PM2 y MariaDB en EC2.
-7. Configura la base de datos local.
-8. Publica el frontend en Apache.
-9. Inicia el backend con PM2.
-10. Valida que frontend, backend y bundle de React respondan correctamente.
+No depende de RDS, ECS, ECR ni SSH, porque esos puntos suelen dar problemas o requerir permisos extra en cuentas tipo Lab Learner.
 
-## Requisitos Previos
+## Que cambio en el despliegue
 
-En tu equipo necesitas:
+Antes, el flujo principal hacia EC2 instalaba Apache, PM2 y MariaDB directamente sobre la maquina, y copiaba el backend/frontend desempaquetados.
 
-- AWS CLI instalado.
-- Node.js y npm instalados.
-- PowerShell.
-- `tar` disponible en la terminal.
-- Credenciales activas de AWS.
+Ahora, el script principal:
 
-Configura AWS CLI con tus credenciales:
+1. Despliega la infraestructura base con CloudFormation.
+2. Empaqueta el codigo fuente necesario para construir las imagenes Docker.
+3. Sube ese paquete a S3.
+4. Usa SSM para que la EC2 descargue el paquete.
+5. Instala Docker y Docker Compose si hace falta.
+6. Genera un `.env.aws` remoto.
+7. Ejecuta `docker compose build` y `docker compose up -d`.
+8. Valida la app en `http://DNS_PUBLICO/api/health`.
+
+El artefacto sigue viajando como `.tar.gz` por S3, pero la aplicacion ya no se ejecuta "a mano" en EC2: corre completa en contenedores.
+
+## Requisitos previos
+
+Necesitas:
+
+- AWS CLI
+- PowerShell
+- `tar`
+- Credenciales vigentes de AWS
+
+Configura la sesion:
 
 ```powershell
 aws configure
@@ -89,11 +78,9 @@ aws configure set aws_session_token "PEGA_AQUI_TU_SESSION_TOKEN"
 aws sts get-caller-identity
 ```
 
-El último comando debe devolver tu cuenta y el ARN de la sesión activa.
+## Despliegue completo en AWS
 
-## Despliegue Completo One-Shot
-
-Desde la raíz del proyecto:
+Desde la raiz del proyecto:
 
 ```powershell
 cd C:\Users\migue\OneDrive\Documentos\GoodMates
@@ -106,194 +93,81 @@ cd C:\Users\migue\OneDrive\Documentos\GoodMates
   -InstanceType t3.micro
 ```
 
-Este comando despliega infraestructura y aplicación.
-
-Al terminar, el script mostrará dos URLs:
+Al terminar, el frontend queda en:
 
 ```text
-Frontend: http://DNS_PUBLICO_DE_EC2
-Backend:  http://DNS_PUBLICO_DE_EC2:5001/api/health
+http://DNS_PUBLICO_DE_EC2
 ```
 
-Usa `http://`, no `https://`, porque este despliegue no configura certificado SSL.
+Y el backend se valida via proxy en:
 
-## Actualizar Solo la Aplicación
+```text
+http://DNS_PUBLICO_DE_EC2/api/health
+```
 
-Si la infraestructura ya existe y solo quieres recompilar y redeplegar GoodMates:
+## Redeploy solo de la aplicacion
+
+Si la infraestructura ya existe:
 
 ```powershell
 .\infra\scripts\deploy-goodmates-one-shot.ps1 -Action app -Region us-east-1
 ```
 
-Esto no recrea la VPC ni la EC2. Solo vuelve a compilar, empaquetar y publicar GoodMates sobre la instancia existente.
-
-## Probar el Despliegue
-
-Para validar que todo quedó funcionando:
+## Probar el despliegue
 
 ```powershell
 .\infra\scripts\deploy-goodmates-one-shot.ps1 -Action test -Region us-east-1
 ```
 
-La prueba revisa:
+Eso revisa:
 
-- Frontend por HTTP.
-- Backend en `/api/health`.
-- Bundle principal de React.
+- frontend por HTTP
+- backend via `/api/health`
+- bundle principal de React
 
-El backend debe responder algo similar a:
-
-```json
-{
-  "success": true,
-  "message": "Servidor GoodMates funcionando correctamente"
-}
-```
-
-## Eliminar Recursos
-
-Cuando ya no necesites el entorno, elimina los recursos para evitar consumo innecesario:
+## Eliminar recursos
 
 ```powershell
 .\infra\scripts\deploy-goodmates-one-shot.ps1 -Action delete -Region us-east-1
 ```
 
-Esto elimina el stack de CloudFormation y los recursos asociados.
+## Docker local
 
-## Acciones Disponibles del Script
-
-| Acción | Descripción |
-|---|---|
-| `all` | Crea/actualiza infraestructura y despliega GoodMates. |
-| `infra` | Solo crea o actualiza la infraestructura AWS. |
-| `app` | Solo despliega la aplicación en una EC2 existente. |
-| `test` | Valida frontend, backend y JS principal. |
-| `delete` | Elimina el stack y los recursos creados. |
-
-## Infraestructura Creada
-
-El template `infra/aws/goodmates-aws-base.yaml` crea:
-
-- VPC.
-- Subredes públicas y privadas.
-- Internet Gateway.
-- Security Group para puertos `80` y `5001`.
-- EC2 con Amazon Linux 2023.
-- S3 privado para paquetes y archivos de verificación.
-- DynamoDB para eventos operativos.
-- CloudWatch Alarm y Dashboard.
-- Acceso administrativo mediante Systems Manager.
-
-## Consideraciones del Entorno AWS
-
-Durante el despliegue se adaptó la arquitectura a los permisos disponibles en el entorno:
-
-- No se usó SSH; se usó AWS Systems Manager Session Manager.
-- RDS no se desplegó porque el entorno bloqueó `rds:CreateDBInstance`.
-- Lambda no se desplegó si no existe un rol asumible por Lambda.
-- La base de datos funcional de GoodMates se instaló como MariaDB local dentro de EC2.
-- El volumen raíz de EC2 se crea cifrado para cumplir con las políticas del entorno.
-
-En un ambiente real de producción, lo recomendable sería usar Amazon RDS para la base de datos, HTTPS con CloudFront o Application Load Balancer y secretos administrados con AWS Secrets Manager.
-
-## Cómo Queda GoodMates en EC2
-
-Después del despliegue:
-
-```text
-/var/www/html
-```
-
-Contiene el frontend React compilado.
-
-```text
-/opt/goodmates/backend
-```
-
-Contiene el backend Node.js/Express.
-
-PM2 ejecuta el backend como:
-
-```text
-goodmates-backend
-```
-
-La base de datos local se crea con:
-
-```text
-DB_NAME=goodmates
-DB_USER=goodmates_user
-DB_PASSWORD=GoodMatesLab2026
-```
-
-## Docker
-
-El proyecto también incluye soporte Docker:
-
-```text
-infra/docker/Dockerfile.backend
-infra/docker/Dockerfile.frontend
-docker-compose.yml
-```
-
-Para levantar GoodMates localmente con Docker:
+Para levantar todo localmente:
 
 ```powershell
-docker-compose --env-file .env.docker up --build
+docker compose --env-file .env.docker up --build
 ```
 
-Esto crea:
-
-- Contenedor MySQL.
-- Contenedor backend.
-- Contenedor frontend con Nginx.
-
-Docker es útil para desarrollo y pruebas, mientras que el script one-shot se usa para el despliegue automatizado en AWS.
-
-## Archivos Clave Para el Despliegue
-
-| Archivo | Importancia |
-|---|---|
-| `infra/scripts/deploy-goodmates-one-shot.ps1` | Script principal de despliegue completo. |
-| `infra/scripts/deploy-transport-lab.ps1` | Script base para infraestructura AWS. |
-| `infra/aws/goodmates-aws-base.yaml` | Template CloudFormation. |
-| `backend/package.json` | Dependencias y arranque del backend. |
-| `backend/src/server.js` | Entrada principal del backend. |
-| `backend/src/config/db.js` | Conexión a la base de datos. |
-| `backend/src/config/initDb.js` | Creación/verificación de tablas. |
-| `frontend/package.json` | Dependencias y build del frontend. |
-| `frontend/src/App.js` | Rutas principales de React. |
-| `frontend/src/services/api.js` | Configura llamadas al backend en el puerto `5001`. |
-| `docker-compose.yml` | Despliegue local con contenedores. |
-
-## Problemas Comunes
-
-### La página se ve en blanco
-
-Verifica que el bundle JS responda con HTTP 200:
-
-```powershell
-.\infra\scripts\deploy-goodmates-one-shot.ps1 -Action test -Region us-east-1
-```
-
-El script corrige permisos de Apache con `chmod` y `restorecon`.
-
-### `SessionManagerPlugin is not found`
-
-AWS CLI está instalado, pero falta el plugin local de Session Manager. Puedes entrar por la consola de AWS en:
+La app queda en:
 
 ```text
-Systems Manager > Session Manager > Start session
+http://localhost
 ```
 
-### El stack está en `ROLLBACK_COMPLETE`
+El frontend usa mismo origen cuando corre en Docker/Nginx, asi que API, Socket.io y uploads viajan por el proxy interno. Si corres el frontend con `react-scripts start`, sigue usando `http://<host>:5001` como fallback para desarrollo.
 
-CloudFormation no permite actualizar un stack en ese estado. El script one-shot intenta borrarlo automáticamente antes de recrearlo.
+## Archivos importantes
 
-### RDS da error de permisos
+| Archivo | Funcion |
+|---|---|
+| `docker-compose.yml` | Stack principal para frontend, backend y MySQL. |
+| `infra/docker/docker-compose.aws.yml` | Override para AWS; no expone DB ni backend al exterior. |
+| `infra/docker/nginx.conf` | Proxy hacia backend y Socket.io. |
+| `infra/scripts/deploy-goodmates-one-shot.ps1` | Script principal de infraestructura + app en Docker. |
+| `infra/scripts/deploy-transport-lab.ps1` | Script base de CloudFormation. |
+| `infra/aws/goodmates-aws-base.yaml` | VPC, EC2, S3, DynamoDB, CloudWatch y permisos base. |
+| `frontend/src/services/api.js` | Resolucion de URL de API e imagenes. |
+| `frontend/src/pages/ChatPage.js` | Cliente Socket.io para chat en tiempo real. |
+| `backend/src/config/db.js` | Conexion MySQL. |
+| `backend/src/config/initDb.js` | Creacion y ajuste del esquema. |
 
-El entorno actual no permite crear la instancia RDS. Por eso este despliegue usa MariaDB local en EC2.
+## Consideraciones para AWS Lab Learner
 
-## Resumen
+- El script sigue usando `-SkipRds`.
+- La base de datos funcional vive en Docker dentro de la EC2.
+- Solo se expone el puerto `80` al publico.
+- La administracion se hace por SSM, no por SSH.
+- No se requiere ECR para que el despliegue funcione.
 
-GoodMates puede desplegarse en AWS usando un flujo automatizado con PowerShell, CloudFormation, S3, EC2, Apache, PM2 y MariaDB. El objetivo del despliegue es tener una forma repetible de publicar la aplicación sin configurar cada componente manualmente.
+En produccion real, lo natural seria separar base de datos, TLS, balanceo, secretos y almacenamiento persistente de forma mas robusta.
