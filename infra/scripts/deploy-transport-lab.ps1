@@ -24,7 +24,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $Root = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-$TemplateFile = Join-Path $Root "infra\aws\learner-lab-transport.yaml"
+$TemplateFile = Join-Path $Root "infra\aws\goodmates-aws-base.yaml"
 
 function Write-Step {
     param([string]$Message)
@@ -94,8 +94,8 @@ function Deploy-Stack {
 
     if (-not $DBPassword) {
         $script:DBPassword = New-LabPassword
-        Write-Host "Password RDS generado para esta sesion: $DBPassword" -ForegroundColor Yellow
-        Write-Host "Guardalo si vas a conectarte a la base de datos durante el laboratorio." -ForegroundColor Yellow
+        Write-Host "Password de base de datos generado para esta sesion: $DBPassword" -ForegroundColor Yellow
+        Write-Host "Guardalo si necesitas conectarte a la base de datos." -ForegroundColor Yellow
     }
 
     $profile = Get-LabInstanceProfile
@@ -140,8 +140,8 @@ function Deploy-Stack {
     Show-Outputs
 
     Write-Host ""
-    Write-Host "Listo. Toma capturas de CloudFormation, EC2, VPC, S3, DynamoDB, RDS, Lambda y CloudWatch." -ForegroundColor Green
-    Write-Host "Al terminar ejecuta -Action delete para evitar consumo de presupuesto." -ForegroundColor Yellow
+    Write-Host "Despliegue completado correctamente." -ForegroundColor Green
+    Write-Host "Cuando ya no necesites el entorno, ejecuta -Action delete para liberar recursos." -ForegroundColor Yellow
 }
 
 function Test-Stack {
@@ -168,10 +168,10 @@ function Test-Stack {
         --query "InstanceInformationList[].{InstanceId:InstanceId,PingStatus:PingStatus,Platform:PlatformName}" `
         --output table
 
-    Write-Step "Subiendo evidencia de prueba a S3"
-    $tempFile = Join-Path $env:TEMP "transport-lab-evidence.txt"
-    "Prueba S3 generada el $(Get-Date -Format s) para $StackName" | Set-Content -Path $tempFile -Encoding UTF8
-    aws s3 cp $tempFile "s3://$bucket/evidencias/prueba-s3.txt" --region $Region
+    Write-Step "Subiendo archivo de verificacion a S3"
+    $tempFile = Join-Path $env:TEMP "transport-s3-check.txt"
+    "Verificacion S3 generada el $(Get-Date -Format s) para $StackName" | Set-Content -Path $tempFile -Encoding UTF8
+    aws s3 cp $tempFile "s3://$bucket/checks/s3-check.txt" --region $Region
     Remove-Item -Path $tempFile -Force
 
     Write-Step "Insertando item de prueba en DynamoDB"
@@ -204,7 +204,7 @@ function Test-Stack {
         Remove-Item -Path $lambdaOut -Force
     }
     else {
-        Write-Host "Lambda no fue desplegada porque este Learner Lab no tiene un rol asumible por Lambda." -ForegroundColor Yellow
+        Write-Host "Lambda no se desplego porque no se proporciono un rol asumible por Lambda." -ForegroundColor Yellow
     }
 
     Write-Step "Consultando alarma de CloudWatch"
@@ -227,7 +227,7 @@ function Delete-Stack {
     Write-Step "Eliminando stack $StackName en $Region"
     aws cloudformation delete-stack --stack-name $StackName --region $Region
     aws cloudformation wait stack-delete-complete --stack-name $StackName --region $Region
-    Write-Host "Stack eliminado. Revisa que no queden recursos del lab encendidos." -ForegroundColor Green
+    Write-Host "Stack eliminado. Verifica que no queden recursos asociados en ejecucion." -ForegroundColor Green
 }
 
 switch ($Action) {

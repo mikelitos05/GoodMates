@@ -1,5 +1,5 @@
 AWSTemplateFormatVersion: "2010-09-09"
-Description: "Caso transporte - AWS Learner Lab con VPC, EC2, S3, DynamoDB, RDS, Lambda y CloudWatch."
+Description: "Infraestructura base en AWS con VPC, EC2, S3, DynamoDB, RDS, Lambda y CloudWatch."
 
 Parameters:
   ProjectName:
@@ -13,11 +13,11 @@ Parameters:
   ExistingInstanceProfile:
     Type: String
     Default: LabInstanceProfile
-    Description: "Instance profile existente del Learner Lab asociado a LabRole."
+    Description: "Instance profile existente asociado al rol de ejecucion permitido."
   LambdaRoleArn:
     Type: String
     Default: ""
-    Description: "ARN de un rol que pueda ser asumido por Lambda. Dejar vacio si el laboratorio no lo permite."
+    Description: "ARN de un rol que pueda ser asumido por Lambda. Dejar vacio si el entorno no lo permite."
   CreateLambda:
     Type: String
     Default: "false"
@@ -33,7 +33,7 @@ Parameters:
     Type: String
     Default: "false"
     AllowedValues: ["true", "false"]
-    Description: "true crea NAT Gateway. Tiene costo; usar solo si se requiere evidencia."
+    Description: "true crea NAT Gateway. Tiene costo; usar solo si se requiere salida a internet desde subredes privadas."
   CreateRds:
     Type: String
     Default: "true"
@@ -341,7 +341,7 @@ Resources:
           <html lang="es">
           <head>
             <meta charset="utf-8">
-            <title>${ProjectName} - AWS Learner Lab</title>
+            <title>${ProjectName} - AWS</title>
             <style>
               body { font-family: Arial, sans-serif; margin: 40px; color: #1f2937; }
               main { max-width: 860px; }
@@ -350,7 +350,7 @@ Resources:
           </head>
           <body>
             <main>
-              <h1>Empresa de transporte - migracion a AWS</h1>
+              <h1>GoodMates - despliegue en AWS</h1>
               <p>Servidor EC2 desplegado con CloudFormation en ${AWS::Region}.</p>
               <ul>
                 <li>Acceso administrativo por AWS Systems Manager Session Manager.</li>

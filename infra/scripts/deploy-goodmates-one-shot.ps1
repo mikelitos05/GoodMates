@@ -40,6 +40,55 @@ function Require-Command {
     }
 }
 
+function ConvertTo-ProcessArgument {
+    param([string]$Value)
+
+    if ($null -eq $Value) {
+        return '""'
+    }
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    return '"' + ($Value -replace '\\', '\\' -replace '"', '\"') + '"'
+}
+
+function Invoke-AwsText {
+    param(
+        [string[]]$Arguments,
+        [switch]$AllowFailure
+    )
+
+    $psi = [System.Diagnostics.ProcessStartInfo]::new()
+    $psi.FileName = "aws"
+    $psi.Arguments = ($Arguments | ForEach-Object { ConvertTo-ProcessArgument $_ }) -join " "
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $psi
+    [void]$process.Start()
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+
+    if ($process.ExitCode -ne 0) {
+        if ($AllowFailure.IsPresent) {
+            return ""
+        }
+        $message = $stderr.Trim()
+        if (-not $message) {
+            $message = "AWS CLI fallo con codigo $($process.ExitCode)."
+        }
+        throw $message
+    }
+
+    return $stdout.Trim()
+}
+
 function Invoke-LoggedNative {
     param(
         [string]$FilePath,
@@ -74,15 +123,13 @@ function Invoke-LoggedNative {
 }
 
 function Get-StackStatus {
-    $status = aws cloudformation describe-stacks `
-        --stack-name $StackName `
-        --region $Region `
-        --query "Stacks[0].StackStatus" `
-        --output text 2>$null
-    if ($LASTEXITCODE -ne 0) {
-        return ""
-    }
-    return $status
+    return Invoke-AwsText -AllowFailure -Arguments @(
+        "cloudformation", "describe-stacks",
+        "--stack-name", $StackName,
+        "--region", $Region,
+        "--query", "Stacks[0].StackStatus",
+        "--output", "text"
+    )
 }
 
 function Get-StackOutput {
@@ -145,6 +192,15 @@ function Deploy-Infrastructure {
         throw "No existe el script de infraestructura: $InfraScript"
     }
 
+    Write-Step "Validando credenciales AWS"
+    try {
+        $identity = Invoke-AwsText -Arguments @("sts", "get-caller-identity", "--region", $Region, "--output", "table")
+        Write-Host $identity
+    }
+    catch {
+        throw "No hay credenciales validas de AWS. Configura Access Key, Secret Key y Session Token, y ejecuta: aws configure; aws configure set aws_session_token `"TU_TOKEN`". Detalle: $($_.Exception.Message)"
+    }
+
     $status = Get-StackStatus
     if ($status -eq "ROLLBACK_COMPLETE") {
         Write-Step "Eliminando stack fallido en ROLLBACK_COMPLETE"
@@ -152,7 +208,7 @@ function Deploy-Infrastructure {
         aws cloudformation wait stack-delete-complete --stack-name $StackName --region $Region
     }
 
-    Write-Step "Desplegando infraestructura Learner Lab sin RDS"
+    Write-Step "Desplegando infraestructura base sin RDS"
     & $InfraScript `
         -Action deploy `
         -Region $Region `
