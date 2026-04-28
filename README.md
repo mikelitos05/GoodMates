@@ -2,7 +2,7 @@
 
 GoodMates es una aplicación web para gestión de roommates, propiedades, perfiles, solicitudes, grupos de convivencia, tareas, tablero compartido y chat. El proyecto está dividido en un frontend React y un backend Node.js/Express con base de datos MySQL/MariaDB.
 
-Este README se enfoca principalmente en el despliegue de GoodMates en AWS Learner Lab.
+Este README se enfoca principalmente en el despliegue de GoodMates en AWS.
 
 ## Arquitectura del Proyecto
 
@@ -26,7 +26,7 @@ GoodMates/
 │   └── package-lock.json
 ├── infra/
 │   ├── aws/
-│   │   └── learner-lab-transport.yaml
+│   │   └── goodmates-aws-base.yaml
 │   ├── docker/
 │   │   ├── Dockerfile.backend
 │   │   ├── Dockerfile.frontend
@@ -50,7 +50,7 @@ GoodMates/
 | Infraestructura | CloudFormation | Crea VPC, EC2, S3, DynamoDB, CloudWatch y Security Groups. |
 | Acceso administrativo | AWS Systems Manager | Permite administrar EC2 sin SSH. |
 
-## Despliegue en AWS Learner Lab
+## Despliegue en AWS
 
 El despliegue recomendado se hace con el script:
 
@@ -79,9 +79,9 @@ En tu equipo necesitas:
 - Node.js y npm instalados.
 - PowerShell.
 - `tar` disponible en la terminal.
-- Credenciales activas de AWS Learner Lab.
+- Credenciales activas de AWS.
 
-Configura AWS CLI con las credenciales temporales del laboratorio:
+Configura AWS CLI con tus credenciales:
 
 ```powershell
 aws configure
@@ -89,7 +89,7 @@ aws configure set aws_session_token "PEGA_AQUI_TU_SESSION_TOKEN"
 aws sts get-caller-identity
 ```
 
-El último comando debe devolver tu cuenta y ARN temporal del laboratorio.
+El último comando debe devolver tu cuenta y el ARN de la sesión activa.
 
 ## Despliegue Completo One-Shot
 
@@ -115,7 +115,7 @@ Frontend: http://DNS_PUBLICO_DE_EC2
 Backend:  http://DNS_PUBLICO_DE_EC2:5001/api/health
 ```
 
-Usa `http://`, no `https://`, porque este despliegue de laboratorio no configura certificado SSL.
+Usa `http://`, no `https://`, porque este despliegue no configura certificado SSL.
 
 ## Actualizar Solo la Aplicación
 
@@ -152,7 +152,7 @@ El backend debe responder algo similar a:
 
 ## Eliminar Recursos
 
-Al terminar la práctica o las capturas, elimina los recursos para no consumir presupuesto del Learner Lab:
+Cuando ya no necesites el entorno, elimina los recursos para evitar consumo innecesario:
 
 ```powershell
 .\infra\scripts\deploy-goodmates-one-shot.ps1 -Action delete -Region us-east-1
@@ -172,24 +172,24 @@ Esto elimina el stack de CloudFormation y los recursos asociados.
 
 ## Infraestructura Creada
 
-El template `infra/aws/learner-lab-transport.yaml` crea:
+El template `infra/aws/goodmates-aws-base.yaml` crea:
 
 - VPC.
 - Subredes públicas y privadas.
 - Internet Gateway.
 - Security Group para puertos `80` y `5001`.
 - EC2 con Amazon Linux 2023.
-- S3 privado para paquetes y evidencias.
-- DynamoDB para eventos/evidencias.
+- S3 privado para paquetes y archivos de verificación.
+- DynamoDB para eventos operativos.
 - CloudWatch Alarm y Dashboard.
 - Acceso administrativo mediante Systems Manager.
 
-## Restricciones del Learner Lab
+## Consideraciones del Entorno AWS
 
-Durante el despliegue se adaptó la arquitectura a las restricciones del laboratorio:
+Durante el despliegue se adaptó la arquitectura a los permisos disponibles en el entorno:
 
 - No se usó SSH; se usó AWS Systems Manager Session Manager.
-- RDS no se desplegó porque el laboratorio bloqueó `rds:CreateDBInstance`.
+- RDS no se desplegó porque el entorno bloqueó `rds:CreateDBInstance`.
 - Lambda no se desplegó si no existe un rol asumible por Lambda.
 - La base de datos funcional de GoodMates se instaló como MariaDB local dentro de EC2.
 - El volumen raíz de EC2 se crea cifrado para cumplir con las políticas del entorno.
@@ -248,7 +248,7 @@ Esto crea:
 - Contenedor backend.
 - Contenedor frontend con Nginx.
 
-Docker es útil para desarrollo y pruebas, mientras que el script one-shot se usa para el despliegue en AWS Learner Lab.
+Docker es útil para desarrollo y pruebas, mientras que el script one-shot se usa para el despliegue automatizado en AWS.
 
 ## Archivos Clave Para el Despliegue
 
@@ -256,7 +256,7 @@ Docker es útil para desarrollo y pruebas, mientras que el script one-shot se us
 |---|---|
 | `infra/scripts/deploy-goodmates-one-shot.ps1` | Script principal de despliegue completo. |
 | `infra/scripts/deploy-transport-lab.ps1` | Script base para infraestructura AWS. |
-| `infra/aws/learner-lab-transport.yaml` | Template CloudFormation. |
+| `infra/aws/goodmates-aws-base.yaml` | Template CloudFormation. |
 | `backend/package.json` | Dependencias y arranque del backend. |
 | `backend/src/server.js` | Entrada principal del backend. |
 | `backend/src/config/db.js` | Conexión a la base de datos. |
@@ -292,9 +292,8 @@ CloudFormation no permite actualizar un stack en ese estado. El script one-shot 
 
 ### RDS da error de permisos
 
-Es una restricción del Learner Lab. Para esta práctica se usa MariaDB local en EC2.
+El entorno actual no permite crear la instancia RDS. Por eso este despliegue usa MariaDB local en EC2.
 
 ## Resumen
 
-GoodMates puede desplegarse en AWS Learner Lab usando un flujo automatizado con PowerShell, CloudFormation, S3, EC2, Apache, PM2 y MariaDB. El objetivo del despliegue es tener una forma repetible de publicar la aplicación sin configurar cada componente manualmente.
-
+GoodMates puede desplegarse en AWS usando un flujo automatizado con PowerShell, CloudFormation, S3, EC2, Apache, PM2 y MariaDB. El objetivo del despliegue es tener una forma repetible de publicar la aplicación sin configurar cada componente manualmente.
